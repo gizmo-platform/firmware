@@ -6,6 +6,7 @@
 #include "indicators.h"
 #include "secrets.h"
 
+const byte BOARD_VOLTAGE = BRI_HW_ADC_BOARD_VOLTAGE;
 const byte PWR_BOARD = BRI_HW_PWR_BOARD ;
 const byte PWR_PICO = BRI_HW_PWR_PICO ;
 const byte PWR_GPIO = BRI_HW_PWR_GPIO ;
@@ -55,10 +56,12 @@ struct CState {
   byte Button9;
 };
 
-struct BState {
+struct BoardState {
   int VBat;
-  int UserWatchdogMillis;
+  int WatchdogRemaining;
+  byte RSSI;
 
+  bool WatchdogOK;
   bool PwrBoard;
   bool PwrPico;
   bool PwrGPIO;
@@ -68,7 +71,7 @@ struct BState {
 
 String cmd;
 CState cstate;
-BState bstate;
+BoardState boardState;
 
 bool ctrlFieldIdentified;
 
@@ -139,6 +142,20 @@ void setupGPIO() {
   pinMode(USER_RESET, OUTPUT);
 }
 
+void setup() {
+  // Let the world know we're alive.  Very useful during debugging.
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  status.Update();
+
+  setupSerial();
+  setupWifi();
+  setupHTTP();
+  setupGPIO();
+
+  UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
+}
+
 void loop() {
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   delay(20);
@@ -154,20 +171,43 @@ void loop() {
 }
 
 void loop1() {
-  readPowerBus();
+  readBoardStatus();
   //doUserWatchdog();
   if (Serial1.available() > 0) {
     doCommands();
   }
   status.Update();
+
 }
 
-void readPowerBus() {
-  bstate.PwrBoard = digitalRead(PWR_BOARD);
-  bstate.PwrPico  = digitalRead(PWR_PICO);
-  bstate.PwrGPIO  = digitalRead(PWR_GPIO);
-  bstate.PwrMainA = digitalRead(PWR_MAIN_A);
-  bstate.PwrMainB = digitalRead(PWR_MAIN_B);
+void readBoardStatus() {
+  boardState.VBat = analogRead(BOARD_VOLTAGE);
+  boardState.WatchdogRemaining = UserWatchdogBitesAt > millis() ? UserWatchdogBitesAt - millis() : 0;
+  boardState.WatchdogOK = UserWatchdogBitesAt > millis() ? true: false;
+  boardState.RSSI = WiFi.RSSI();
+  boardState.PwrBoard = digitalRead(PWR_BOARD);
+  boardState.PwrPico  = digitalRead(PWR_PICO);
+  boardState.PwrGPIO  = digitalRead(PWR_GPIO);
+  boardState.PwrMainA = digitalRead(PWR_MAIN_A);
+  boardState.PwrMainB = digitalRead(PWR_MAIN_B);
+}
+
+void doDataReport() {
+  http.begin(REPORT_URL);
+  http.addHeader("Content-Type", "Content-Type: application/json");
+  String output;
+  StaticJsonDocument<164> posting;
+  posting["VBat"] = boardState.VBat;
+  posting["WatchdogRemaining"] = boardState.WatchdogRemaining;
+  posting["RSSI"] = boardState.RSSI;
+  posting["PwrBoard"] = boardState.PwrBoard;
+  posting["PwrPico"] = boardState.PwrPico;
+  posting["PwrGPIO"] = boardState.PwrGPIO;
+  posting["PwrMainA"] = boardState.PwrMainA;
+  posting["PwrMainB"] = boardState.PwrMainB;
+  posting["WatchdogOK"] = boardState.WatchdogOK;
+  serializeJson(posting, output);
+  int httpCode = http.POST(output);
 }
 
 void doParseLocation() {
