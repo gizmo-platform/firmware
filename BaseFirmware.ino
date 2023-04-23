@@ -1,3 +1,4 @@
+#include "config.h"
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
@@ -5,15 +6,23 @@
 #include "indicators.h"
 #include "secrets.h"
 
-#define PWR_BOARD 7
-#define PWR_PICO 8
-#define PWR_GPIO 9
-#define PWR_MAIN_A 10
-#define PWR_MAIN_B 11
+const byte PWR_BOARD = BRI_HW_PWR_BOARD ;
+const byte PWR_PICO = BRI_HW_PWR_PICO ;
+const byte PWR_GPIO = BRI_HW_PWR_GPIO ;
+const byte PWR_MAIN_A = BRI_HW_PWR_MAIN_A ;
+const byte PWR_MAIN_B = BRI_HW_PWR_MAIN_B ;
+const byte STATUS_NEOPIXELS_PIN = BRI_HW_STATUS_NEOPIXELS_PIN ;
+const byte STATUS_NEOPIXELS_CNT = BRI_HW_STATUS_NEOPIXELS_CNT ;
+const byte USER_RESET = BRI_HW_USER_RESET ;
 
-#define STATUS_NEOPIXELS_PIN 15
-#define STATUS_NEOPIXELS_CNT 3
-#define USER_RESET 22
+const int MILLIS_WATCHDOG = 15000;
+const char WIFI_SSID[] = BRI_PRIVATE_WIFI_SSID;
+const char WIFI_PSK[] = BRI_PRIVATE_WIFI_PSK;
+
+const int SERIAL_SPEED = BRI_HW_SERIAL_SPEED;
+
+String LOCATION_URL = String(BRI_PUBLIC_HTTP_SERVER) + "robot/data/location/" + BRI_PUBLIC_TEAM_NUMBER;
+String GAMEPAD_URL = String(BRI_PUBLIC_HTTP_SERVER) + "robot/data/gamepad/" + BRI_PUBLIC_TEAM_NUMBER;
 
 HTTPClient http;
 StaticJsonDocument<384> cstateJSON;
@@ -76,15 +85,15 @@ void setup() {
   setupHTTP();
   setupGPIO();
 
-  UserWatchdogBitesAt = millis() + 15000;
+  UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
 }
 
 void setupSerial() {
   Serial1.setTX(0);
   Serial1.setRX(1);
-  Serial1.begin(9600);
+  Serial1.begin(SERIAL_SPEED);
 
-  Serial.begin(9600);
+  Serial.begin(SERIAL_SPEED);
 
   Serial.println();
   Serial.println();
@@ -93,7 +102,7 @@ void setupSerial() {
 
 void setupWifi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(STASSID, STAPSK);
+  WiFi.begin(WIFI_SSID, WIFI_PSK);
 
   // wait for WiFi connection
   while ((WiFi.status() != WL_CONNECTED)) {
@@ -148,7 +157,7 @@ void readPowerBus() {
 void ensureFieldLocation() {
   if (!ctrlFieldIdentified) {
     http.end();
-    http.begin("http://192.168.16.10:8080/robot/data/location/1234");
+    http.begin(LOCATION_URL);
     int c = http.GET();
     if (c == HTTP_CODE_OK) {
       deserializeJson(fstateJSON, http.getStream());
@@ -174,7 +183,7 @@ void ensureFieldLocation() {
 }
 
 void doFetchControlData() {
-  http.begin("http://192.168.16.10:8080/robot/data/gamepad/1234");
+  http.begin(GAMEPAD_URL);
   int httpCode = http.GET();
   if (httpCode > 0) {
     // file found at server
@@ -208,7 +217,7 @@ void doFetchControlData() {
     status.SetControlConnected(false);
     ctrlFieldIdentified = false;
     http.end();
-    http.begin("http://192.168.16.10:8080/robot/data/gamepad/1234");
+    http.begin(GAMEPAD_URL);
   }
 }
 
