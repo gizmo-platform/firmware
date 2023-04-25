@@ -8,8 +8,9 @@
 #define BRI_HW_USER_RESET 22
 #define BRI_HW_SERIAL_SPEED 9600
 
-#define BRI_PUBLIC_TEAM_NUMBER "12345678"
+#define BRI_PUBLIC_TEAM_NUMBER "1234"
 #define BRI_PUBLIC_HTTP_SERVER "http://192.168.16.10:8080/"
+#define BRI_PUBLIC_MQTT_BROKER "192.168.16.10"
 
 #define BRI_PUBLIC_MILLIS_WATCHDOG 15000
 // set the next two in secret.h if you like

@@ -1,8 +1,8 @@
 #include "config.h"
 #include <WiFi.h>
 #include <WiFiMulti.h>
-#include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <ArduinoMqttClient.h>
 #include "indicators.h"
 #include "secrets.h"
 
@@ -21,12 +21,15 @@ const char WIFI_PSK[] = BRI_PRIVATE_WIFI_PSK;
 
 const int SERIAL_SPEED = BRI_HW_SERIAL_SPEED;
 
-String LOCATION_URL = String(BRI_PUBLIC_HTTP_SERVER) + "robot/data/location/" + BRI_PUBLIC_TEAM_NUMBER;
-String GAMEPAD_URL = String(BRI_PUBLIC_HTTP_SERVER) + "robot/data/gamepad/" + BRI_PUBLIC_TEAM_NUMBER;
+const char* GAMEPAD_TOPIC  = "robot/1234/gamepad";
+const char* LOCATION_TOPIC = "robot/1234/location";
+const char* STATS_TOPIC    = "robot/1234/stats";
 
-HTTPClient http;
 StaticJsonDocument<384> cstateJSON;
 StaticJsonDocument<64> fstateJSON;
+
+WiFiClient wifiClient;
+MqttClient mqttClient(wifiClient);
 
 StatusIndicators status(STATUS_NEOPIXELS_PIN, STATUS_NEOPIXELS_CNT);
 
@@ -73,6 +76,7 @@ unsigned long UserWatchdogBitesAt;
 unsigned long UserWatchdogResetsAt;
 
 String fieldLocation;
+String messageTopic;
 
 void setup() {
   // Let the world know we're alive.  Very useful during debugging.
@@ -82,7 +86,7 @@ void setup() {
 
   setupSerial();
   setupWifi();
-  setupHTTP();
+  setupMQTT();
   setupGPIO();
 
   UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
@@ -106,7 +110,7 @@ void setupWifi() {
 
   // wait for WiFi connection
   while ((WiFi.status() != WL_CONNECTED)) {
-    Serial.write('.');
+    Serial.write('w');
     delay(500);
   }
   status.SetWifiConnected(true);
@@ -114,11 +118,15 @@ void setupWifi() {
   Serial.println(" connected to WiFi");
 }
 
-void setupHTTP() {
-  // allow reuse (if server supports it)
-  http.setReuse(true);
-  http.setInsecure();
-  http.setTimeout(100);
+void setupMQTT() {
+  while (!mqttClient.connect(BRI_PUBLIC_MQTT_BROKER, 1883)) {
+    Serial.print("MQTT connection failed! Error code = ");
+    Serial.println(mqttClient.connectError());
+    delay(500);
+  }
+
+  mqttClient.subscribe(GAMEPAD_TOPIC);
+  mqttClient.subscribe(LOCATION_TOPIC);
 }
 
 void setupGPIO() {
@@ -133,8 +141,16 @@ void setupGPIO() {
 
 void loop() {
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-  ensureFieldLocation();
-  doFetchControlData();
+  delay(20);
+
+  int messageSize = mqttClient.parseMessage();
+  if (messageSize) {
+    if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
+      doParseControlData();
+    } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
+      doParseLocation();
+    }
+  }
 }
 
 void loop1() {
@@ -154,71 +170,52 @@ void readPowerBus() {
   bstate.PwrMainB = digitalRead(PWR_MAIN_B);
 }
 
-void ensureFieldLocation() {
+void doParseLocation() {
   if (!ctrlFieldIdentified) {
-    http.end();
-    http.begin(LOCATION_URL);
-    int c = http.GET();
-    if (c == HTTP_CODE_OK) {
-      deserializeJson(fstateJSON, http.getStream());
-      status.SetFieldNumber(fstateJSON["Field"]);
-      switch (fstateJSON["Quadrant"].as<const char*>()[0]) {
-      case 82:
-        status.SetFieldQuadrant(BRI_QUAD_RED);
-        break;
-      case 66:
-        status.SetFieldQuadrant(BRI_QUAD_BLUE);
-        break;
-      case 71:
-        status.SetFieldQuadrant(BRI_QUAD_GREEN);
-        break;
-      case 89:
-        status.SetFieldQuadrant(BRI_QUAD_YELLOW);
-        break;
-      }
-      ctrlFieldIdentified = true;
+    deserializeJson(fstateJSON, mqttClient);
+    status.SetFieldNumber(fstateJSON["Field"]);
+    switch (fstateJSON["Quadrant"].as<const char*>()[0]) {
+    case 82:
+      status.SetFieldQuadrant(BRI_QUAD_RED);
+      break;
+    case 66:
+      status.SetFieldQuadrant(BRI_QUAD_BLUE);
+      break;
+    case 71:
+      status.SetFieldQuadrant(BRI_QUAD_GREEN);
+      break;
+    case 89:
+      status.SetFieldQuadrant(BRI_QUAD_YELLOW);
+      break;
     }
-    return;
+    ctrlFieldIdentified = true;
   }
+  return;
 }
 
-void doFetchControlData() {
-  http.begin(GAMEPAD_URL);
-  int httpCode = http.GET();
-  if (httpCode > 0) {
-    // file found at server
-    if (httpCode == HTTP_CODE_OK) {
-      deserializeJson(cstateJSON, http.getStream());
-      cstate.Button0 = cstateJSON["ButtonBack"];
-      cstate.Button1 = cstateJSON["ButtonStart"];
-      cstate.Button2 = cstateJSON["ButtonLeftStick"];
-      cstate.Button3 = cstateJSON["ButtonRightStick"];
-      cstate.Button4 = cstateJSON["ButtonX"];
-      cstate.Button5 = cstateJSON["ButtonY"];
-      cstate.Button6 = cstateJSON["ButtonA"];
-      cstate.Button7 = cstateJSON["ButtonB"];
-      cstate.Button8 = cstateJSON["ButtonLShoulder"];
-      cstate.Button9 = cstateJSON["ButtonRShoulder"];
+void doParseControlData() {
+  deserializeJson(cstateJSON, mqttClient);
+  cstate.Button0 = cstateJSON["ButtonBack"];
+  cstate.Button1 = cstateJSON["ButtonStart"];
+  cstate.Button2 = cstateJSON["ButtonLeftStick"];
+  cstate.Button3 = cstateJSON["ButtonRightStick"];
+  cstate.Button4 = cstateJSON["ButtonX"];
+  cstate.Button5 = cstateJSON["ButtonY"];
+  cstate.Button6 = cstateJSON["ButtonA"];
+  cstate.Button7 = cstateJSON["ButtonB"];
+  cstate.Button8 = cstateJSON["ButtonLShoulder"];
+  cstate.Button9 = cstateJSON["ButtonRShoulder"];
 
-      cstate.Axis0 = cstateJSON["AxisLX"];
-      cstate.Axis1 = cstateJSON["AxisLY"];
-      cstate.Axis2 = cstateJSON["AxisRX"];
-      cstate.Axis3 = cstateJSON["AxisRY"];
-      cstate.Axis4 = cstateJSON["AxisLT"];
-      cstate.Axis5 = cstateJSON["AxisRT"];
-      cstate.Axis6 = cstateJSON["AxisDX"];
-      cstate.Axis7 = cstateJSON["AxisDY"];
+  cstate.Axis0 = cstateJSON["AxisLX"];
+  cstate.Axis1 = cstateJSON["AxisLY"];
+  cstate.Axis2 = cstateJSON["AxisRX"];
+  cstate.Axis3 = cstateJSON["AxisRY"];
+  cstate.Axis4 = cstateJSON["AxisLT"];
+  cstate.Axis5 = cstateJSON["AxisRT"];
+  cstate.Axis6 = cstateJSON["AxisDX"];
+  cstate.Axis7 = cstateJSON["AxisDY"];
 
-      status.SetControlConnected(true);
-    }
-  } else {
-    // Something went wrong with the connection, try to reconnect
-    //Serial.printf("HTTP ERROR: %d\r\n", httpCode);
-    status.SetControlConnected(false);
-    ctrlFieldIdentified = false;
-    http.end();
-    http.begin(GAMEPAD_URL);
-  }
+  status.SetControlConnected(true);
 }
 
 void doUserWatchdog() {
