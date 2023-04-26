@@ -145,16 +145,20 @@ void loop() {
   delay(20);
 
   if (!mqttClient.connected()) {
+    status.SetControlConnected(false);
     setupMQTT();
   }
 
   if (WiFi.status() != WL_CONNECTED) {
+    status.SetControlConnected(false);
+    status.SetWifiConnected(false);
     setupWifi();
   }
 
   int messageSize = mqttClient.parseMessage();
   if (messageSize) {
     if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
+      status.SetControlConnected(true);
       doParseControlData();
     } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
       doParseLocation();
@@ -170,7 +174,6 @@ void loop1() {
     doCommands();
   }
   status.Update();
-
 }
 
 void readBoardStatus() {
@@ -206,19 +209,15 @@ void doStatsReport() {
 void doParseLocation() {
   deserializeJson(fstateJSON, mqttClient);
   status.SetFieldNumber(fstateJSON["Field"]);
-  switch (fstateJSON["Quadrant"].as<const char*>()[0]) {
-  case 82:
+
+  if (fstateJSON["Quadrant"] == "RED") {
     status.SetFieldQuadrant(BRI_QUAD_RED);
-    break;
-  case 66:
+  } else if (fstateJSON["Quadrant"] == "BLUE") {
     status.SetFieldQuadrant(BRI_QUAD_BLUE);
-    break;
-  case 71:
+  } else if (fstateJSON["Quadrant"] == "GREEN") {
     status.SetFieldQuadrant(BRI_QUAD_GREEN);
-    break;
-  case 89:
+  } else if (fstateJSON["Quadrant"] == "YELLOW") {
     status.SetFieldQuadrant(BRI_QUAD_YELLOW);
-    break;
   }
   return;
 }
@@ -244,8 +243,6 @@ void doParseControlData() {
   cstate.Axis5 = cstateJSON["AxisRT"];
   cstate.Axis6 = cstateJSON["AxisDX"];
   cstate.Axis7 = cstateJSON["AxisDY"];
-
-  status.SetControlConnected(true);
 }
 
 void doUserWatchdog() {

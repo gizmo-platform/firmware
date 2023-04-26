@@ -50,6 +50,7 @@ void StatusIndicators::doFieldSet() {
     return;
   }
 
+  if (!fieldNum) return ;
   if (toggleFieldCnt > blinkFieldLen[fieldNum-1]-1) {
     toggleFieldCnt = 0;
   }
