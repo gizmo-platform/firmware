@@ -151,6 +151,7 @@ void loop() {
     } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
       doParseLocation();
     }
+    doStatsReport();
   }
 }
 
@@ -176,9 +177,7 @@ void readBoardStatus() {
   boardState.PwrMainB = digitalRead(PWR_MAIN_B);
 }
 
-void doDataReport() {
-  http.begin(REPORT_URL);
-  http.addHeader("Content-Type", "Content-Type: application/json");
+void doStatsReport() {
   String output;
   StaticJsonDocument<164> posting;
   posting["VBat"] = boardState.VBat;
@@ -191,7 +190,9 @@ void doDataReport() {
   posting["PwrMainB"] = boardState.PwrMainB;
   posting["WatchdogOK"] = boardState.WatchdogOK;
   serializeJson(posting, output);
-  int httpCode = http.POST(output);
+  mqttClient.beginMessage(STATS_TOPIC);
+  mqttClient.print(output);
+  mqttClient.endMessage();
 }
 
 void doParseLocation() {
