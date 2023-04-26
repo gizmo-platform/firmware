@@ -144,15 +144,15 @@ void loop() {
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   delay(20);
 
-  if (!mqttClient.connected()) {
-    status.SetControlConnected(false);
-    setupMQTT();
-  }
-
   if (WiFi.status() != WL_CONNECTED) {
     status.SetControlConnected(false);
     status.SetWifiConnected(false);
     setupWifi();
+  }
+
+  if (!mqttClient.connected()) {
+    status.SetControlConnected(false);
+    setupMQTT();
   }
 
   int messageSize = mqttClient.parseMessage();
