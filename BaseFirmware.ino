@@ -22,9 +22,9 @@ const char WIFI_PSK[] = BRI_PRIVATE_WIFI_PSK;
 
 const int SERIAL_SPEED = BRI_HW_SERIAL_SPEED;
 
-const char* GAMEPAD_TOPIC  = "robot/1234/gamepad";
-const char* LOCATION_TOPIC = "robot/1234/location";
-const char* STATS_TOPIC    = "robot/1234/stats";
+String GAMEPAD_TOPIC  = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/gamepad";
+String LOCATION_TOPIC = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/location";
+String STATS_TOPIC    = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/stats";
 
 StaticJsonDocument<384> cstateJSON;
 StaticJsonDocument<64> fstateJSON;
