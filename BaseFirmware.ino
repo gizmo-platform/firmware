@@ -73,8 +73,6 @@ String cmd;
 CState cstate;
 BoardState boardState;
 
-bool ctrlFieldIdentified;
-
 unsigned long UserWatchdogBitesAt;
 unsigned long UserWatchdogResetsAt;
 
@@ -142,20 +140,6 @@ void setupGPIO() {
   pinMode(USER_RESET, OUTPUT);
 }
 
-void setup() {
-  // Let the world know we're alive.  Very useful during debugging.
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-  status.Update();
-
-  setupSerial();
-  setupWifi();
-  setupHTTP();
-  setupGPIO();
-
-  UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
-}
-
 void loop() {
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   delay(20);
@@ -211,24 +195,21 @@ void doDataReport() {
 }
 
 void doParseLocation() {
-  if (!ctrlFieldIdentified) {
-    deserializeJson(fstateJSON, mqttClient);
-    status.SetFieldNumber(fstateJSON["Field"]);
-    switch (fstateJSON["Quadrant"].as<const char*>()[0]) {
-    case 82:
-      status.SetFieldQuadrant(BRI_QUAD_RED);
-      break;
-    case 66:
-      status.SetFieldQuadrant(BRI_QUAD_BLUE);
-      break;
-    case 71:
-      status.SetFieldQuadrant(BRI_QUAD_GREEN);
-      break;
-    case 89:
-      status.SetFieldQuadrant(BRI_QUAD_YELLOW);
-      break;
-    }
-    ctrlFieldIdentified = true;
+  deserializeJson(fstateJSON, mqttClient);
+  status.SetFieldNumber(fstateJSON["Field"]);
+  switch (fstateJSON["Quadrant"].as<const char*>()[0]) {
+  case 82:
+    status.SetFieldQuadrant(BRI_QUAD_RED);
+    break;
+  case 66:
+    status.SetFieldQuadrant(BRI_QUAD_BLUE);
+    break;
+  case 71:
+    status.SetFieldQuadrant(BRI_QUAD_GREEN);
+    break;
+  case 89:
+    status.SetFieldQuadrant(BRI_QUAD_YELLOW);
+    break;
   }
   return;
 }
