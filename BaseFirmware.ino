@@ -144,6 +144,14 @@ void loop() {
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   delay(20);
 
+  if (!mqttClient.connected()) {
+    setupMQTT();
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    setupWifi();
+  }
+
   int messageSize = mqttClient.parseMessage();
   if (messageSize) {
     if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
@@ -151,12 +159,12 @@ void loop() {
     } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
       doParseLocation();
     }
+    readBoardStatus();
     doStatsReport();
   }
 }
 
 void loop1() {
-  readBoardStatus();
   //doUserWatchdog();
   if (Serial1.available() > 0) {
     doCommands();
