@@ -1,4 +1,5 @@
 #include "config.h"
+#include <Wire.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <ArduinoJson.h>
@@ -15,6 +16,9 @@ const byte PWR_MAIN_B = BRI_HW_PWR_MAIN_B ;
 const byte STATUS_NEOPIXELS_PIN = BRI_HW_STATUS_NEOPIXELS_PIN ;
 const byte STATUS_NEOPIXELS_CNT = BRI_HW_STATUS_NEOPIXELS_CNT ;
 const byte USER_RESET = BRI_HW_USER_RESET ;
+
+const byte I2C_SDA = BRI_HW_I2C_SDA;
+const byte I2C_SCL = BRI_HW_I2C_SCL;
 
 const int MILLIS_WATCHDOG = 15000;
 const char WIFI_SSID[] = BRI_PRIVATE_WIFI_SSID;
@@ -83,6 +87,7 @@ void setup() {
   // Let the world know we're alive.  Very useful during debugging.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
   status.Update();
 
   setupSerial();
@@ -91,6 +96,18 @@ void setup() {
   setupGPIO();
 
   UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+}
+
+void setup1() {
+  Wire1.setSDA(I2C_SDA);
+  Wire1.setSCL(I2C_SCL);
+  Wire1.begin(8);
+  Wire1.onRequest(writeStateToI2C);
+
+  Serial2.setTX(4);
+  Serial2.setRX(5);
+  Serial2.begin(SERIAL_SPEED);
 }
 
 void setupSerial() {
@@ -258,6 +275,32 @@ void doUserWatchdog() {
     digitalWrite(USER_RESET, LOW);
     Serial.println("WARNING: User watchdog cleared!");
   }
+}
+
+void writeStateToI2C() {
+	byte toSend[18] = {
+		cstate.Axis0,
+		cstate.Axis1,
+		cstate.Axis2,
+		cstate.Axis3,
+		cstate.Axis4,
+		cstate.Axis5,
+		cstate.Axis6,
+		cstate.Axis7,
+		cstate.Button0,
+		cstate.Button1,
+		cstate.Button2,
+		cstate.Button3,
+		cstate.Button4,
+		cstate.Button5,
+		cstate.Button6,
+		cstate.Button7,
+		cstate.Button8,
+		cstate.Button9
+	};
+	Wire1.write(toSend, 18);
+	UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
+	return;
 }
 
 void doCommands() {
