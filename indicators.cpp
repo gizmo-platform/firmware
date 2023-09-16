@@ -2,7 +2,7 @@
 #include "Arduino.h"
 
 StatusIndicators::StatusIndicators(int pin, int count) {
-  pixels = Adafruit_NeoPixel(count, pin, NEO_RGB + NEO_KHZ800);
+  pixels = Adafruit_NeoPixel(count, pin, NEO_GRB + NEO_KHZ800);
 
   pixels.begin();
   pixels.setBrightness(20);

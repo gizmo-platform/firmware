@@ -142,9 +142,11 @@ void setupMQTT() {
     Serial.println(mqttClient.connectError());
     delay(500);
   }
+  Serial.println("MQTT Connected");
 
   mqttClient.subscribe(GAMEPAD_TOPIC);
   mqttClient.subscribe(LOCATION_TOPIC);
+  Serial.println("MQTT Subscribed");
 }
 
 void setupGPIO() {
@@ -187,9 +189,6 @@ void loop() {
 
 void loop1() {
   //doUserWatchdog();
-  if (Serial1.available() > 0) {
-    doCommands();
-  }
   status.Update();
 }
 
@@ -301,57 +300,4 @@ void writeStateToI2C() {
 	Wire1.write(toSend, 18);
 	UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
 	return;
-}
-
-void doCommands() {
-  cmd = Serial1.readStringUntil('\n');
-  cmd.trim();
-  Serial.print("Got Command: " + cmd + " (");
-
-  if (cmd == "BT") {
-    Serial1.println("OK");
-  } else if (cmd == "BTB0") {
-    Serial1.write(cstate.Button0);
-  } else if (cmd == "BTB1") {
-    Serial1.write(cstate.Button1);
-  } else if (cmd == "BTB2") {
-    Serial1.write(cstate.Button2);
-  } else if (cmd == "BTB3") {
-    Serial1.write(cstate.Button3);
-  } else if (cmd == "BTB4") {
-    Serial1.write(cstate.Button4);
-  } else if (cmd == "BTB5") {
-    Serial1.write(cstate.Button5);
-  } else if (cmd == "BTB6") {
-    Serial1.write(cstate.Button6);
-  } else if (cmd == "BTB7") {
-    Serial1.write(cstate.Button7);
-  } else if (cmd == "BTB8") {
-    Serial1.write(cstate.Button8);
-  } else if (cmd == "BTB9") {
-    Serial1.write(cstate.Button9);
-  } else if (cmd == "BTA0") {
-    Serial1.write(cstate.Axis0);
-  } else if (cmd == "BTA1") {
-    Serial1.write(cstate.Axis1);
-    Serial.print(cstate.Axis1);
-  } else if (cmd == "BTA2") {
-    Serial1.write(cstate.Axis2);
-  } else if (cmd == "BTA3") {
-    Serial1.write(cstate.Axis3);
-    Serial.print(cstate.Axis3);
-  } else if (cmd == "BTA4") {
-    Serial1.write(cstate.Axis4);
-  } else if (cmd == "BTA5") {
-    Serial1.write(cstate.Axis5);
-  } else if (cmd == "BTA6") {
-    Serial1.write(cstate.Axis6);
-  } else if (cmd == "BTFDWD" ) {
-    UserWatchdogBitesAt = millis() + 1000;
-    Serial1.write("OK");
-  } else {
-    Serial1.println("EPARSE");
-  }
-
-  Serial.println(")");
 }
