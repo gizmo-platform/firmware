@@ -12,12 +12,12 @@
 #define BRI_QUAD_YELLOW 3
 #define BRI_QUAD_PRACTICE 4
 
-const unsigned long blinkFieldNum[3][6] = { { 500, 300 }, { 500, 100, 100, 100 }, {500, 100, 100, 100, 100, 100}};
+const unsigned long blinkFieldNum[3][6] = { { 500, 100 }, { 500, 100, 100, 100 }, {500, 100, 100, 100, 100, 100}};
 const byte blinkFieldLen[] = { 2, 4, 6 };
 class StatusIndicators
 {
 public:
-  StatusIndicators(int pin, int count);
+  StatusIndicators(int, int);
   void Update();
   void SetWifiConnected(bool);
   void SetControlConnected(bool);

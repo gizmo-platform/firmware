@@ -4,6 +4,7 @@
 #include <WiFiMulti.h>
 #include <ArduinoJson.h>
 #include <ArduinoMqttClient.h>
+#include <CooperativeMultitasking.h>
 #include "indicators.h"
 #include "secrets.h"
 
@@ -35,6 +36,14 @@ StaticJsonDocument<64> fstateJSON;
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
+
+CooperativeMultitasking tasks;
+Continuation superviseMQTT;
+Continuation superviseWiFi;
+Continuation doStatsReport;
+Continuation doFailsafeLED;
+Continuation doMQTTPoll;
+Guard networkIsAvailable;
 
 StatusIndicators status(STATUS_NEOPIXELS_PIN, STATUS_NEOPIXELS_CNT);
 
@@ -77,125 +86,115 @@ String cmd;
 CState cstate;
 BoardState boardState;
 
-unsigned long UserWatchdogBitesAt;
-unsigned long UserWatchdogResetsAt;
-
 String fieldLocation;
 String messageTopic;
 
 void setup() {
-  // Let the world know we're alive.  Very useful during debugging.
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-
-  status.Update();
-
-  setupSerial();
-  setupWifi();
-  setupMQTT();
-  setupGPIO();
-
-  UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-}
-
-void setup1() {
-  Wire1.setSDA(I2C_SDA);
-  Wire1.setSCL(I2C_SCL);
-  Wire1.begin(8);
-  Wire1.onRequest(writeStateToI2C);
-
-  Serial2.setTX(4);
-  Serial2.setRX(5);
-  Serial2.begin(SERIAL_SPEED);
-}
-
-void setupSerial() {
-  Serial1.setTX(0);
-  Serial1.setRX(1);
-  Serial1.begin(SERIAL_SPEED);
-
-  Serial.begin(SERIAL_SPEED);
-
-  Serial.println();
-  Serial.println();
-  Serial.println("Connecting to WiFi...");
-}
-
-void setupWifi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PSK);
-
-  // wait for WiFi connection
-  while ((WiFi.status() != WL_CONNECTED)) {
-    Serial.write('w');
-    delay(500);
-  }
-  status.SetWifiConnected(true);
-  status.Update();
-  Serial.println(" connected to WiFi");
-}
-
-void setupMQTT() {
-  while (!mqttClient.connect(BRI_PUBLIC_MQTT_BROKER, 1883)) {
-    Serial.print("MQTT connection failed! Error code = ");
-    Serial.println(mqttClient.connectError());
-    delay(500);
-  }
-  Serial.println("MQTT Connected");
-
-  mqttClient.subscribe(GAMEPAD_TOPIC);
-  mqttClient.subscribe(LOCATION_TOPIC);
-  Serial.println("MQTT Subscribed");
-}
-
-void setupGPIO() {
   pinMode(PWR_BOARD, INPUT);
   pinMode(PWR_PICO, INPUT);
   pinMode(PWR_GPIO, INPUT);
   pinMode(PWR_MAIN_A, INPUT);
   pinMode(PWR_MAIN_B, INPUT);
-
   pinMode(USER_RESET, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  Serial.begin(SERIAL_SPEED);
+
+  Serial.println();
+  Serial.println();
+  Serial.println("I'm Alive!");
+
+  tasks.now(superviseWiFi);
+  tasks.now(doFailsafeLED);
+  tasks.now(doStatsReport);
+  status.Update();
+
+  tasks.ifForThen(networkIsAvailable, 5000, superviseMQTT);
+}
+
+void doMQTTPoll() {
+  mqttClient.poll();
+  tasks.after(20, doMQTTPoll);
+}
+
+void doFailsafeLED() {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  tasks.after(50, doFailsafeLED);
+}
+
+bool networkIsAvailable() {
+  return WiFi.localIP().isSet();
+}
+
+void superviseWiFi() {
+  status.SetWifiConnected(WiFi.localIP().isSet());
+  switch (WiFi.status()) {
+  case WL_IDLE_STATUS:
+    if (!WiFi.localIP().isSet()) {
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(WIFI_SSID, WIFI_PSK);
+      Serial.println("WiFi connected");
+      Serial.printf("My IP is: ");
+      Serial.println(WiFi.localIP());
+    }
+    break;
+  case WL_CONNECTED:
+    tasks.after(30000, superviseWiFi);
+    return;
+  case WL_NO_SHIELD:
+    Serial.println("no wifi device, hardware fault!");
+    return;
+  case WL_CONNECT_FAILED:
+    Serial.println("wifi connect failed");
+    break;
+  case WL_CONNECTION_LOST:
+    Serial.println("wifi connection lost");
+    break;
+  case WL_DISCONNECTED:
+    Serial.println("wifi disconnected");
+    break;
+  }
+  tasks.after(10000, superviseWiFi);
+}
+
+void superviseMQTT() {
+  // Don't bother if network is not connected
+  if (!networkIsAvailable()) {
+    tasks.after(5000, superviseMQTT);
+  }
+
+  // Connect if required
+  if (!mqttClient.connected()) {
+    status.SetControlConnected(false);
+    Serial.println("MQTT is not connected, reconnecting...");
+    if (!mqttClient.connect(BRI_PUBLIC_MQTT_BROKER, 1883)) {
+      Serial.print("MQTT connection failed! Error code = ");
+      Serial.println(mqttClient.connectError());
+      tasks.after(2000, superviseMQTT);
+      return;
+    }
+    Serial.println("MQTT Connected");
+
+    // Like and Subscribe
+    mqttClient.onMessage(doParseMQTTMessage);
+    mqttClient.subscribe(GAMEPAD_TOPIC);
+    mqttClient.subscribe(LOCATION_TOPIC);
+    Serial.println("MQTT Subscribed");
+
+    tasks.after(10000, superviseMQTT);
+    tasks.now(doMQTTPoll);
+  }
 }
 
 void loop() {
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-  delay(20);
-
-  if (WiFi.status() != WL_CONNECTED) {
-    status.SetControlConnected(false);
-    status.SetWifiConnected(false);
-    setupWifi();
-  }
-
-  if (!mqttClient.connected()) {
-    status.SetControlConnected(false);
-    setupMQTT();
-  }
-
-  int messageSize = mqttClient.parseMessage();
-  if (messageSize) {
-    if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
-      status.SetControlConnected(true);
-      doParseControlData();
-    } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
-      doParseLocation();
-    }
-    readBoardStatus();
-    doStatsReport();
-  }
-}
-
-void loop1() {
-  //doUserWatchdog();
+  tasks.run();
   status.Update();
 }
 
 void readBoardStatus() {
   boardState.VBat = analogRead(BOARD_VOLTAGE);
-  boardState.WatchdogRemaining = UserWatchdogBitesAt > millis() ? UserWatchdogBitesAt - millis() : 0;
-  boardState.WatchdogOK = UserWatchdogBitesAt > millis() ? true: false;
+  boardState.WatchdogRemaining = 0;
+  boardState.WatchdogOK = false;
   boardState.RSSI = WiFi.RSSI();
   boardState.PwrBoard = digitalRead(PWR_BOARD);
   boardState.PwrPico  = digitalRead(PWR_PICO);
@@ -205,6 +204,10 @@ void readBoardStatus() {
 }
 
 void doStatsReport() {
+  // Fetch updated information
+  readBoardStatus();
+
+  // Serialize State
   String output;
   StaticJsonDocument<164> posting;
   posting["VBat"] = boardState.VBat;
@@ -217,9 +220,22 @@ void doStatsReport() {
   posting["PwrMainB"] = boardState.PwrMainB;
   posting["WatchdogOK"] = boardState.WatchdogOK;
   serializeJson(posting, output);
+
+  // Push to the FMS
   mqttClient.beginMessage(STATS_TOPIC);
   mqttClient.print(output);
   mqttClient.endMessage();
+
+  // Again in a second
+  tasks.after(1000, doStatsReport);
+}
+
+void doParseMQTTMessage(int messageSize) {
+  if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
+    doParseControlData();
+  } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
+    doParseLocation();
+  }
 }
 
 void doParseLocation() {
@@ -235,6 +251,7 @@ void doParseLocation() {
   } else if (fstateJSON["Quadrant"] == "YELLOW") {
     status.SetFieldQuadrant(BRI_QUAD_YELLOW);
   }
+  status.SetControlConnected(true);
   return;
 }
 
@@ -261,43 +278,34 @@ void doParseControlData() {
   cstate.Axis7 = cstateJSON["AxisDY"];
 }
 
-void doUserWatchdog() {
-  if (UserWatchdogBitesAt < millis()) {
-    Serial.print("WARNING: User watchdog timed out! (");
-    Serial.print(millis() - UserWatchdogBitesAt);
-    Serial.println("ms)");
-    digitalWrite(USER_RESET, HIGH);
-    UserWatchdogResetsAt = millis() + 100;
-    UserWatchdogBitesAt = millis() + 2000;
-  }
-  if (digitalRead(USER_RESET) && (UserWatchdogResetsAt < millis())) {
-    digitalWrite(USER_RESET, LOW);
-    Serial.println("WARNING: User watchdog cleared!");
-  }
+void setup1() {
+  Wire1.setSDA(I2C_SDA);
+  Wire1.setSCL(I2C_SCL);
+  Wire1.begin(8);
+  Wire1.onRequest(writeStateToI2C);
 }
 
 void writeStateToI2C() {
-	byte toSend[18] = {
-		cstate.Axis0,
-		cstate.Axis1,
-		cstate.Axis2,
-		cstate.Axis3,
-		cstate.Axis4,
-		cstate.Axis5,
-		cstate.Axis6,
-		cstate.Axis7,
-		cstate.Button0,
-		cstate.Button1,
-		cstate.Button2,
-		cstate.Button3,
-		cstate.Button4,
-		cstate.Button5,
-		cstate.Button6,
-		cstate.Button7,
-		cstate.Button8,
-		cstate.Button9
-	};
-	Wire1.write(toSend, 18);
-	UserWatchdogBitesAt = millis() + MILLIS_WATCHDOG;
-	return;
+  byte toSend[18] = {
+    cstate.Axis0,
+    cstate.Axis1,
+    cstate.Axis2,
+    cstate.Axis3,
+    cstate.Axis4,
+    cstate.Axis5,
+    cstate.Axis6,
+    cstate.Axis7,
+    cstate.Button0,
+    cstate.Button1,
+    cstate.Button2,
+    cstate.Button3,
+    cstate.Button4,
+    cstate.Button5,
+    cstate.Button6,
+    cstate.Button7,
+    cstate.Button8,
+    cstate.Button9
+  };
+  Wire1.write(toSend, 18);
+  return;
 }
