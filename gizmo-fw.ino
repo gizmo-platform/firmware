@@ -8,20 +8,6 @@
 #include "indicators.h"
 #include "secrets.h"
 
-const byte BOARD_VOLTAGE = BRI_HW_ADC_BOARD_VOLTAGE;
-const byte PWR_BOARD = BRI_HW_PWR_BOARD ;
-const byte PWR_PICO = BRI_HW_PWR_PICO ;
-const byte PWR_GPIO = BRI_HW_PWR_GPIO ;
-const byte PWR_MAIN_A = BRI_HW_PWR_MAIN_A ;
-const byte PWR_MAIN_B = BRI_HW_PWR_MAIN_B ;
-const byte STATUS_NEOPIXELS_PIN = BRI_HW_STATUS_NEOPIXELS_PIN ;
-const byte STATUS_NEOPIXELS_CNT = BRI_HW_STATUS_NEOPIXELS_CNT ;
-const byte USER_RESET = BRI_HW_USER_RESET ;
-
-const byte I2C_SDA = BRI_HW_I2C_SDA;
-const byte I2C_SCL = BRI_HW_I2C_SCL;
-
-const int MILLIS_WATCHDOG = 15000;
 const char WIFI_SSID[] = BRI_PRIVATE_WIFI_SSID;
 const char WIFI_PSK[] = BRI_PRIVATE_WIFI_PSK;
 
@@ -45,7 +31,7 @@ Continuation doFailsafeLED;
 Continuation doMQTTPoll;
 Guard networkIsAvailable;
 
-StatusIndicators status(STATUS_NEOPIXELS_PIN, STATUS_NEOPIXELS_CNT);
+StatusIndicators status(BRI_HW_STATUS_NEOPIXELS_PIN, BRI_HW_STATUS_NEOPIXELS_CNT);
 
 struct CState {
   byte Axis0;
@@ -90,15 +76,16 @@ String fieldLocation;
 String messageTopic;
 
 void setup() {
-  pinMode(PWR_BOARD, INPUT);
-  pinMode(PWR_PICO, INPUT);
-  pinMode(PWR_GPIO, INPUT);
-  pinMode(PWR_MAIN_A, INPUT);
-  pinMode(PWR_MAIN_B, INPUT);
-  pinMode(USER_RESET, OUTPUT);
+  pinMode(BRI_HW_PWR_BOARD, INPUT);
+  pinMode(BRI_HW_PWR_PICO, INPUT);
+  pinMode(BRI_HW_PWR_GPIO, INPUT);
+  pinMode(BRI_HW_PWR_MAIN_A, INPUT);
+  pinMode(BRI_HW_PWR_MAIN_B, INPUT);
+  pinMode(BRI_HW_USER_RESET, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(BRI_HW_PRACTICE_MODE, INPUT);
 
-  Serial.begin(SERIAL_SPEED);
+  Serial.begin(BRI_HW_SERIAL_SPEED);
 
   Serial.println();
   Serial.println();
@@ -192,15 +179,15 @@ void loop() {
 }
 
 void readBoardStatus() {
-  boardState.VBat = analogRead(BOARD_VOLTAGE);
+  boardState.VBat = analogRead(BRI_HW_ADC_BOARD_VOLTAGE);
   boardState.WatchdogRemaining = 0;
   boardState.WatchdogOK = false;
   boardState.RSSI = WiFi.RSSI();
-  boardState.PwrBoard = digitalRead(PWR_BOARD);
-  boardState.PwrPico  = digitalRead(PWR_PICO);
-  boardState.PwrGPIO  = digitalRead(PWR_GPIO);
-  boardState.PwrMainA = digitalRead(PWR_MAIN_A);
-  boardState.PwrMainB = digitalRead(PWR_MAIN_B);
+  boardState.PwrBoard = digitalRead(BRI_HW_PWR_BOARD);
+  boardState.PwrPico  = digitalRead(BRI_HW_PWR_PICO);
+  boardState.PwrGPIO  = digitalRead(BRI_HW_PWR_GPIO);
+  boardState.PwrMainA = digitalRead(BRI_HW_PWR_MAIN_A);
+  boardState.PwrMainB = digitalRead(BRI_HW_PWR_MAIN_B);
 }
 
 void doStatsReport() {
@@ -279,8 +266,8 @@ void doParseControlData() {
 }
 
 void setup1() {
-  Wire1.setSDA(I2C_SDA);
-  Wire1.setSCL(I2C_SCL);
+  Wire1.setSDA(BRI_HW_I2C_SDA);
+  Wire1.setSCL(BRI_HW_I2C_SCL);
   Wire1.begin(8);
   Wire1.onRequest(writeStateToI2C);
 }
