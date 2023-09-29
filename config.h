@@ -1,7 +1,5 @@
 #include "Arduino.h"
-
-#define BRI_PUBLIC_TEAM_NUMBER "1234"
-#define BRI_PUBLIC_MQTT_BROKER "192.168.16.10"
+#include "params.h"
 
 // Pin assignments that are hardware specific.
 const byte BRI_HW_ADC_BOARD_VOLTAGE = 28;
@@ -22,7 +20,3 @@ const int BRI_HW_SERIAL_SPEED = 9600;
 
 // Watchdog bites at 15s without food.
 const int BRI_PUBLIC_MILLIS_WATCHDOG = 15000;
-
-// set the next two in secret.h if you like
-#define BRI_PRIVATE_WIFI_SSID ""
-#define BRI_PRIVATE_WIFI_PSK ""
