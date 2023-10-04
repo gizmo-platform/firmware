@@ -16,6 +16,7 @@ const int SERIAL_SPEED = BRI_HW_SERIAL_SPEED;
 String GAMEPAD_TOPIC  = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/gamepad";
 String LOCATION_TOPIC = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/location";
 String STATS_TOPIC    = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/stats";
+String DEFAULT_BROKER = BRI_PUBLIC_MQTT_BROKER;
 
 StaticJsonDocument<384> cstateJSON;
 StaticJsonDocument<64> fstateJSON;
@@ -75,6 +76,8 @@ BoardState boardState;
 String fieldLocation;
 String messageTopic;
 
+bool practiceModeEnabled;
+
 void setup() {
   pinMode(BRI_HW_PWR_BOARD, INPUT);
   pinMode(BRI_HW_PWR_PICO, INPUT);
@@ -90,6 +93,8 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println("I'm Alive!");
+
+  practiceModeEnabled = digitalRead(BRI_HW_PRACTICE_MODE);
 
   tasks.now(superviseWiFi);
   tasks.now(doFailsafeLED);
@@ -115,6 +120,23 @@ bool networkIsAvailable() {
 
 void superviseWiFi() {
   status.SetWifiConnected(WiFi.localIP().isSet());
+  if (practiceModeEnabled) {
+    Serial.println("Practice mode enabled, Configuring softAP");
+    superviseWiFiAP();
+  } else {
+    superviseWiFiSTA();
+  }
+}
+
+void superviseWiFiAP() {
+  String ssid = String("robot") + BRI_PUBLIC_TEAM_NUMBER;
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid);
+  DEFAULT_BROKER = "192.168.42.2";
+  status.SetWifiConnected(WiFi.localIP().isSet());
+}
+
+void superviseWiFiSTA() {
   switch (WiFi.status()) {
   case WL_IDLE_STATUS:
     if (!WiFi.localIP().isSet()) {
@@ -153,7 +175,8 @@ void superviseMQTT() {
   // Connect if required
   if (!mqttClient.connected()) {
     status.SetControlConnected(false);
-    Serial.println("MQTT is not connected, reconnecting...");
+    Serial.println("MQTT is not connected, reconnecting (broker: " + DEFAULT_BROKER + ")...");
+    Serial.println(WiFi.softAPIP());
     if (!mqttClient.connect(BRI_PUBLIC_MQTT_BROKER, 1883)) {
       Serial.print("MQTT connection failed! Error code = ");
       Serial.println(mqttClient.connectError());
@@ -237,6 +260,8 @@ void doParseLocation() {
     status.SetFieldQuadrant(BRI_QUAD_GREEN);
   } else if (fstateJSON["Quadrant"] == "YELLOW") {
     status.SetFieldQuadrant(BRI_QUAD_YELLOW);
+  } else if (fstateJSON["Quadrant"] == "PRACTICE") {
+    status.SetFieldQuadrant(BRI_QUAD_PRACTICE);
   }
   status.SetControlConnected(true);
   return;
