@@ -41,8 +41,6 @@ struct CState {
   byte Axis3;
   byte Axis4;
   byte Axis5;
-  byte Axis6;
-  byte Axis7;
 
   byte Button0;
   byte Button1;
@@ -54,6 +52,8 @@ struct CState {
   byte Button7;
   byte Button8;
   byte Button9;
+  byte Button10;
+  byte Button11;
 };
 
 struct BoardState {
@@ -269,25 +269,25 @@ void doParseLocation() {
 
 void doParseControlData() {
   deserializeJson(cstateJSON, mqttClient);
-  cstate.Button0 = cstateJSON["ButtonBack"];
-  cstate.Button1 = cstateJSON["ButtonStart"];
-  cstate.Button2 = cstateJSON["ButtonLeftStick"];
-  cstate.Button3 = cstateJSON["ButtonRightStick"];
-  cstate.Button4 = cstateJSON["ButtonX"];
-  cstate.Button5 = cstateJSON["ButtonY"];
-  cstate.Button6 = cstateJSON["ButtonA"];
-  cstate.Button7 = cstateJSON["ButtonB"];
-  cstate.Button8 = cstateJSON["ButtonLShoulder"];
-  cstate.Button9 = cstateJSON["ButtonRShoulder"];
+  cstate.Button0  = cstateJSON["ButtonX"];
+  cstate.Button1  = cstateJSON["ButtonA"];
+  cstate.Button2  = cstateJSON["ButtonB"];
+  cstate.Button3  = cstateJSON["ButtonY"];
+  cstate.Button4  = cstateJSON["ButtonLShoulder"];
+  cstate.Button5  = cstateJSON["ButtonRShoulder"];
+  cstate.Button6  = cstateJSON["ButtonLT"];
+  cstate.Button7  = cstateJSON["ButtonRT"];
+  cstate.Button8  = cstateJSON["ButtonBack"];
+  cstate.Button9  = cstateJSON["ButtonStart"];
+  cstate.Button10 = cstateJSON["ButtonLeftStick"];
+  cstate.Button11 = cstateJSON["ButtonRightStick"];
 
   cstate.Axis0 = cstateJSON["AxisLX"];
   cstate.Axis1 = cstateJSON["AxisLY"];
   cstate.Axis2 = cstateJSON["AxisRX"];
   cstate.Axis3 = cstateJSON["AxisRY"];
-  cstate.Axis4 = cstateJSON["AxisLT"];
-  cstate.Axis5 = cstateJSON["AxisRT"];
-  cstate.Axis6 = cstateJSON["AxisDX"];
-  cstate.Axis7 = cstateJSON["AxisDY"];
+  cstate.Axis4 = cstateJSON["AxisDX"];
+  cstate.Axis5 = cstateJSON["AxisDY"];
 }
 
 void setup1() {
@@ -305,8 +305,6 @@ void writeStateToI2C() {
     cstate.Axis3,
     cstate.Axis4,
     cstate.Axis5,
-    cstate.Axis6,
-    cstate.Axis7,
     cstate.Button0,
     cstate.Button1,
     cstate.Button2,
@@ -316,7 +314,9 @@ void writeStateToI2C() {
     cstate.Button6,
     cstate.Button7,
     cstate.Button8,
-    cstate.Button9
+    cstate.Button9,
+    cstate.Button10,
+    cstate.Button11,
   };
   Wire1.write(toSend, 18);
   return;
