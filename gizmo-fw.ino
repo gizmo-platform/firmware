@@ -128,7 +128,6 @@ bool networkIsAvailable() {
 }
 
 void superviseWiFi() {
-  status.SetWifiConnected(WiFi.localIP().isSet());
   if (practiceModeEnabled) {
     Serial.println("Practice mode enabled, Configuring softAP");
     superviseWiFiAP();
@@ -146,6 +145,7 @@ void superviseWiFiAP() {
 }
 
 void superviseWiFiSTA() {
+  status.SetWifiConnected(WiFi.status() == WL_CONNECTED);
   switch (WiFi.status()) {
   case WL_IDLE_STATUS:
     if (!WiFi.localIP().isSet()) {
