@@ -79,6 +79,15 @@ String messageTopic;
 bool practiceModeEnabled;
 
 void setup() {
+  // Initialize the cstate axis data so that robots don't run away on
+  // boot.
+  cstate.Axis0 = 127;
+  cstate.Axis1 = 127;
+  cstate.Axis2 = 127;
+  cstate.Axis3 = 127;
+  cstate.Axis4 = 127;
+  cstate.Axis5 = 127;
+
   pinMode(BRI_HW_PWR_BOARD, INPUT);
   pinMode(BRI_HW_PWR_PICO, INPUT);
   pinMode(BRI_HW_PWR_GPIO, INPUT);
