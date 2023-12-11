@@ -220,6 +220,23 @@ void readBoardStatus() {
   boardState.PwrGPIO  = digitalRead(BRI_HW_PWR_GPIO);
   boardState.PwrMainA = digitalRead(BRI_HW_PWR_MAIN_A);
   boardState.PwrMainB = digitalRead(BRI_HW_PWR_MAIN_B);
+
+  // This converts from what the ADC reads to a voltage that's pretty
+  // close to reality.  There's some slop in this calculation because
+  // we aren't really doing everything totally correct with all the
+  // analog biasing on the input.  This number was calculated by a
+  // linear regression over sampled values.
+  float voltage = 0.008833 * boardState.VBat + 0.3017;
+
+  if (voltage>=8) {
+    status.SetBatteryLevel(BRI_BAT_FULL);
+  } else if (voltage<8 && voltage>=7.5) {
+    status.SetBatteryLevel(BRI_BAT_GOOD);
+  } else if (voltage<7.5 && voltage>=7) {
+    status.SetBatteryLevel(BRI_BAT_PASS);
+  } else if (voltage<7) {
+    status.SetBatteryLevel(BRI_BAT_DEAD);
+  }
 }
 
 void doStatsReport() {

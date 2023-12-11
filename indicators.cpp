@@ -12,6 +12,7 @@ StatusIndicators::StatusIndicators(int pin, int count) {
 void StatusIndicators::Update() {
   doWifiSet();
   doFieldSet();
+  doBatterySet();
   pixels.show();
 }
 
@@ -29,6 +30,10 @@ void StatusIndicators::SetFieldQuadrant(int pos) {
 
 void StatusIndicators::SetFieldNumber(int num) {
   fieldNum = num;
+}
+
+void StatusIndicators::SetBatteryLevel(byte lvl) {
+  batLevel = lvl;
 }
 
 void StatusIndicators::doWifiSet() {
@@ -81,6 +86,26 @@ void StatusIndicators::doSetColorForFieldPos(byte quad) {
     break;
   case BRI_QUAD_PRACTICE:
     pixels.setPixelColor(BRI_INDICATE_FIELD, 255, 255, 255);
+    break;
+  }
+}
+
+void StatusIndicators::doBatterySet() {
+  switch (batLevel) {
+  case BRI_BAT_FULL:
+    pixels.setPixelColor(BRI_INDICATE_BAT, 0, 255, 0);
+    break;
+  case BRI_BAT_GOOD:
+    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 255, 0);
+    break;
+  case BRI_BAT_PASS:
+    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 165, 0);
+    break;
+  case BRI_BAT_DEAD:
+    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 0, 0);
+    break;
+  default:
+    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 0, 255);
     break;
   }
 }
