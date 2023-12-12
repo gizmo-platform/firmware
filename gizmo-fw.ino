@@ -30,6 +30,7 @@ Continuation superviseWiFi;
 Continuation doStatsReport;
 Continuation doFailsafeLED;
 Continuation doMQTTPoll;
+Continuation doMQTTWatchdog;
 Guard networkIsAvailable;
 
 StatusIndicators status(BRI_HW_STATUS_NEOPIXELS_PIN, BRI_HW_STATUS_NEOPIXELS_CNT);
@@ -77,6 +78,7 @@ String fieldLocation;
 String messageTopic;
 
 bool practiceModeEnabled;
+unsigned long nextControlPacketDueBy;
 
 void setup() {
   // Initialize the cstate axis data so that robots don't run away on
@@ -108,9 +110,17 @@ void setup() {
   tasks.now(superviseWiFi);
   tasks.now(doFailsafeLED);
   tasks.now(doStatsReport);
+  tasks.now(doMQTTWatchdog);
   status.Update();
 
   tasks.ifForThen(networkIsAvailable, 5000, superviseMQTT);
+}
+
+void doMQTTWatchdog() {
+  if (nextControlPacketDueBy < millis()) {
+    status.SetControlConnected(false);
+  }
+  tasks.after(250, doMQTTWatchdog);
 }
 
 void doMQTTPoll() {
@@ -178,11 +188,11 @@ void superviseWiFiSTA() {
 void superviseMQTT() {
   // Don't bother if network is not connected
   if (!networkIsAvailable()) {
-    tasks.after(5000, superviseMQTT);
+    status.SetControlConnected(false);
   }
 
   // Connect if required
-  if (!mqttClient.connected()) {
+  if (nextControlPacketDueBy < millis()) {
     status.SetControlConnected(false);
     Serial.println("MQTT is not connected, reconnecting (broker: " + DEFAULT_BROKER + ")...");
     Serial.println(WiFi.softAPIP());
@@ -200,9 +210,9 @@ void superviseMQTT() {
     mqttClient.subscribe(LOCATION_TOPIC);
     Serial.println("MQTT Subscribed");
 
-    tasks.after(10000, superviseMQTT);
     tasks.now(doMQTTPoll);
   }
+  tasks.after(5000, superviseMQTT);
 }
 
 void loop() {
@@ -267,6 +277,9 @@ void doStatsReport() {
 }
 
 void doParseMQTTMessage(int messageSize) {
+  nextControlPacketDueBy = millis() + 250;
+  status.SetControlConnected(true);
+
   if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
     doParseControlData();
   } else if (mqttClient.messageTopic() == LOCATION_TOPIC) {
@@ -289,7 +302,6 @@ void doParseLocation() {
   } else if (fstateJSON["Quadrant"] == "PRACTICE") {
     status.SetFieldQuadrant(BRI_QUAD_PRACTICE);
   }
-  status.SetControlConnected(true);
   return;
 }
 
