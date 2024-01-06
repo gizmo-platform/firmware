@@ -80,6 +80,7 @@ String messageTopic;
 
 bool practiceModeEnabled;
 unsigned long nextControlPacketDueBy;
+unsigned long controlFrameAge;
 
 void setup() {
   // Initialize the cstate axis data so that robots don't run away on
@@ -258,6 +259,7 @@ void doStatsReport() {
   // Serialize State
   String output;
   StaticJsonDocument<164> posting;
+  posting["ControlFrameAge"] = millis() - controlFrameAge;
   posting["WifiReconnects"] = boardState.WifiReconnects;
   posting["VBat"] = boardState.VBat;
   posting["WatchdogRemaining"] = boardState.WatchdogRemaining;
@@ -329,6 +331,8 @@ void doParseControlData() {
   cstate.Axis3 = cstateJSON["AxisRY"];
   cstate.Axis4 = cstateJSON["AxisDX"];
   cstate.Axis5 = cstateJSON["AxisDY"];
+
+  controlFrameAge = millis();
 }
 
 void setup1() {
