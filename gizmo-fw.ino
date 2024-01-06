@@ -60,6 +60,7 @@ struct CState {
 struct BoardState {
   int VBat;
   int WatchdogRemaining;
+  int WifiReconnects;
   byte RSSI;
 
   bool WatchdogOK;
@@ -164,6 +165,7 @@ void superviseWiFiSTA() {
       Serial.println("WiFi connected");
       Serial.printf("My IP is: ");
       Serial.println(WiFi.localIP());
+      boardState.WifiReconnects++;
     }
     break;
   case WL_CONNECTED:
@@ -256,6 +258,7 @@ void doStatsReport() {
   // Serialize State
   String output;
   StaticJsonDocument<164> posting;
+  posting["WifiReconnects"] = boardState.WifiReconnects;
   posting["VBat"] = boardState.VBat;
   posting["WatchdogRemaining"] = boardState.WatchdogRemaining;
   posting["RSSI"] = boardState.RSSI;
