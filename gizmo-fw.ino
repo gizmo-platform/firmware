@@ -61,7 +61,7 @@ struct BoardState {
   int VBat;
   int WatchdogRemaining;
   int WifiReconnects;
-  byte RSSI;
+  int RSSI;
 
   bool WatchdogOK;
   bool PwrBoard;
