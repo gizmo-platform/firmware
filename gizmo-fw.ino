@@ -78,6 +78,8 @@ BoardState boardState;
 String fieldLocation;
 String messageTopic;
 
+String hostname = String("robot") + BRI_PUBLIC_TEAM_NUMBER;
+
 bool practiceModeEnabled;
 unsigned long nextControlPacketDueBy;
 unsigned long controlFrameAge;
@@ -108,6 +110,9 @@ void setup() {
   Serial.println("I'm Alive!");
 
   practiceModeEnabled = digitalRead(BRI_HW_PRACTICE_MODE);
+  WiFi.setHostname(hostname.c_str());
+  WiFi.noLowPowerMode();
+  WiFi.setTimeout(500);
 
   tasks.now(superviseWiFi);
   tasks.now(doFailsafeLED);
