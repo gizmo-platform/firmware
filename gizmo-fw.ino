@@ -62,6 +62,7 @@ struct BoardState {
   int WatchdogRemaining;
   int WifiReconnects;
   int RSSI;
+  int FramesReceived;
 
   bool WatchdogOK;
   bool PwrBoard;
@@ -265,6 +266,7 @@ void doStatsReport() {
   String output;
   StaticJsonDocument<164> posting;
   posting["ControlFrameAge"] = millis() - controlFrameAge;
+  posting["ControlFramesReceived"] = boardState.FramesReceived;
   posting["WifiReconnects"] = boardState.WifiReconnects;
   posting["VBat"] = boardState.VBat;
   posting["WatchdogRemaining"] = boardState.WatchdogRemaining;
@@ -338,6 +340,7 @@ void doParseControlData() {
   cstate.Axis5 = cstateJSON["AxisDY"];
 
   controlFrameAge = millis();
+  boardState.FramesReceived++;
 }
 
 void setup1() {
