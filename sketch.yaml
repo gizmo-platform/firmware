@@ -8,5 +8,4 @@ profiles:
     libraries:
       - ArduinoJson (6.20.0)
       - ArduinoMqttClient (0.1.7)
-      - Cooperative Multitasking (1.0.11)
       - Adafruit NeoPixel (1.11.0)

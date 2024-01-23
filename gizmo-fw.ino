@@ -4,7 +4,7 @@
 #include <WiFiMulti.h>
 #include <ArduinoJson.h>
 #include <ArduinoMqttClient.h>
-#include <CooperativeMultitasking.h>
+#include <arduino-timer.h>
 #include "indicators.h"
 #include "secrets.h"
 
@@ -24,14 +24,7 @@ StaticJsonDocument<64> fstateJSON;
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
 
-CooperativeMultitasking tasks;
-Continuation superviseMQTT;
-Continuation superviseWiFi;
-Continuation doStatsReport;
-Continuation doFailsafeLED;
-Continuation doMQTTPoll;
-Continuation doMQTTWatchdog;
-Guard networkIsAvailable;
+auto taskQueue = timer_create_default();
 
 StatusIndicators status(BRI_HW_STATUS_NEOPIXELS_PIN, BRI_HW_STATUS_NEOPIXELS_CNT);
 
@@ -115,54 +108,34 @@ void setup() {
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
 
-  tasks.now(superviseWiFi);
-  tasks.now(doFailsafeLED);
-  tasks.now(doStatsReport);
-  tasks.now(doMQTTWatchdog);
+  superviseWiFi(NULL);
+  taskQueue.every(1000, doStatsReport);
+  taskQueue.every(250, doMQTTWatchdog);
   status.Update();
 
-  tasks.ifForThen(networkIsAvailable, 5000, superviseMQTT);
+  taskQueue.in(5000, superviseMQTT);
 }
 
-void doMQTTWatchdog() {
+bool doMQTTWatchdog(void* v) {
   if (nextControlPacketDueBy < millis()) {
     status.SetControlConnected(false);
+    Serial.println("MQTT Appears disconected");
+    superviseMQTT(v);
   }
-  tasks.after(250, doMQTTWatchdog);
+  return true;
 }
 
-void doMQTTPoll() {
-  mqttClient.poll();
-  tasks.after(20, doMQTTPoll);
-}
-
-void doFailsafeLED() {
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-  tasks.after(50, doFailsafeLED);
-}
-
-bool networkIsAvailable() {
-  return WiFi.localIP().isSet();
-}
-
-void superviseWiFi() {
+bool superviseWiFi(void* v) {
   if (practiceModeEnabled) {
     Serial.println("Practice mode enabled, Configuring softAP");
-    superviseWiFiAP();
+    //superviseWiFiAP();
   } else {
-    superviseWiFiSTA();
+    superviseWiFiSTA(v);
   }
+  return true;
 }
 
-void superviseWiFiAP() {
-  String ssid = String("robot") + BRI_PUBLIC_TEAM_NUMBER;
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid);
-  DEFAULT_BROKER = "192.168.42.2";
-  status.SetWifiConnected(WiFi.localIP().isSet());
-}
-
-void superviseWiFiSTA() {
+bool superviseWiFiSTA(void*) {
   status.SetWifiConnected(WiFi.status() == WL_CONNECTED);
   switch (WiFi.status()) {
   case WL_IDLE_STATUS:
@@ -170,17 +143,19 @@ void superviseWiFiSTA() {
       WiFi.mode(WIFI_STA);
       WiFi.begin(WIFI_SSID, WIFI_PSK);
       Serial.println("WiFi connected");
-      Serial.printf("My IP is: ");
-      Serial.println(WiFi.localIP());
+      while (!WiFi.localIP().isSet()) {
+        delay(100);
+      }
       boardState.WifiReconnects++;
+      status.SetWifiConnected(true);
     }
     break;
   case WL_CONNECTED:
-    tasks.after(30000, superviseWiFi);
-    return;
+    taskQueue.in(30000, superviseWiFi);
+    return true;
   case WL_NO_SHIELD:
     Serial.println("no wifi device, hardware fault!");
-    return;
+    return true;
   case WL_CONNECT_FAILED:
     Serial.println("wifi connect failed");
     break;
@@ -191,13 +166,14 @@ void superviseWiFiSTA() {
     Serial.println("wifi disconnected");
     break;
   }
-  tasks.after(10000, superviseWiFi);
+  return true;
 }
 
-void superviseMQTT() {
+bool superviseMQTT(void*) {
   // Don't bother if network is not connected
-  if (!networkIsAvailable()) {
+  if (!WiFi.localIP().isSet()) {
     status.SetControlConnected(false);
+    return true;
   }
 
   // Connect if required
@@ -208,8 +184,8 @@ void superviseMQTT() {
     if (!mqttClient.connect(BRI_PUBLIC_MQTT_BROKER, 1883)) {
       Serial.print("MQTT connection failed! Error code = ");
       Serial.println(mqttClient.connectError());
-      tasks.after(2000, superviseMQTT);
-      return;
+      taskQueue.in(2000, superviseMQTT);
+      return true;
     }
     Serial.println("MQTT Connected");
 
@@ -219,14 +195,16 @@ void superviseMQTT() {
     mqttClient.subscribe(LOCATION_TOPIC);
     Serial.println("MQTT Subscribed");
 
-    tasks.now(doMQTTPoll);
+    mqttClient.poll();
   }
-  tasks.after(5000, superviseMQTT);
+  return true;
 }
 
 void loop() {
-  tasks.run();
   status.Update();
+  taskQueue.tick();
+  mqttClient.poll();
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 }
 
 void readBoardStatus() {
@@ -258,7 +236,7 @@ void readBoardStatus() {
   }
 }
 
-void doStatsReport() {
+bool doStatsReport(void*) {
   // Fetch updated information
   readBoardStatus();
 
@@ -283,13 +261,11 @@ void doStatsReport() {
   mqttClient.beginMessage(STATS_TOPIC);
   mqttClient.print(output);
   mqttClient.endMessage();
-
-  // Again in a second
-  tasks.after(1000, doStatsReport);
+  return true;
 }
 
 void doParseMQTTMessage(int messageSize) {
-  nextControlPacketDueBy = millis() + 250;
+  nextControlPacketDueBy = millis() + 500;
   status.SetControlConnected(true);
 
   if (mqttClient.messageTopic() == GAMEPAD_TOPIC) {
