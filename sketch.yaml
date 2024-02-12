@@ -9,3 +9,4 @@ profiles:
       - ArduinoJson (6.20.0)
       - ArduinoMqttClient (0.1.7)
       - Adafruit NeoPixel (1.11.0)
+      - arduino-timer (3.0.1)
