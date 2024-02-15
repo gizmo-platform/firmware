@@ -6,7 +6,7 @@ profiles:
       - platform: rp2040:rp2040 (3.6.0)
         platform_index_url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
     libraries:
-      - ArduinoJson (6.20.0)
+      - ArduinoJson (7.0.3)
       - ArduinoMqttClient (0.1.7)
       - Adafruit NeoPixel (1.11.0)
       - arduino-timer (3.0.1)

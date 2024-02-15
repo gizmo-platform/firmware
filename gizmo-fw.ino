@@ -18,8 +18,8 @@ String LOCATION_TOPIC = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/location";
 String STATS_TOPIC    = String("robot/") + BRI_PUBLIC_TEAM_NUMBER + "/stats";
 String DEFAULT_BROKER = BRI_PUBLIC_MQTT_BROKER;
 
-StaticJsonDocument<384> cstateJSON;
-StaticJsonDocument<64> fstateJSON;
+JsonDocument cstateJSON;
+JsonDocument fstateJSON;
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
@@ -242,7 +242,7 @@ bool doStatsReport(void*) {
 
   // Serialize State
   String output;
-  StaticJsonDocument<164> posting;
+  JsonDocument posting;
   posting["ControlFrameAge"] = millis() - controlFrameAge;
   posting["ControlFramesReceived"] = boardState.FramesReceived;
   posting["WifiReconnects"] = boardState.WifiReconnects;
