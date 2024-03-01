@@ -108,10 +108,10 @@ void setup() {
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
 
+  status.Update();
   superviseWiFi(NULL);
   taskQueue.every(1000, doStatsReport);
   taskQueue.every(250, doMQTTWatchdog);
-  status.Update();
 
   taskQueue.in(5000, superviseMQTT);
 }
