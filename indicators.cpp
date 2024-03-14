@@ -38,20 +38,20 @@ void StatusIndicators::SetBatteryLevel(byte lvl) {
 
 void StatusIndicators::doWifiSet() {
   if (wifiConnected && ! ctrlConnected) {
-    pixels.setPixelColor(BRI_INDICATE_NET, 255, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
   } else if (wifiConnected && ctrlConnected) {
-    pixels.setPixelColor(BRI_INDICATE_NET, 0, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 255, 0);
   } else {
-    pixels.setPixelColor(BRI_INDICATE_NET, 255, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 0);
   }
 }
 
 void StatusIndicators::doFieldSet() {
   if (! wifiConnected) {
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 0, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 0);
     return;
   } else if ( wifiConnected && ! ctrlConnected) {
-    pixels.setPixelColor(BRI_INDICATE_FIELD, wheel((millis() / 5) % 255));
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, wheel((millis() / 5) % 255));
     return;
   }
 
@@ -61,7 +61,7 @@ void StatusIndicators::doFieldSet() {
   }
   if (toggleFieldAt < millis()) {
     if (toggleFieldCnt % 2 == 0) {
-      pixels.setPixelColor(BRI_INDICATE_FIELD, 0, 0, 0);
+      pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 0);
     } else {
       doSetColorForFieldPos(fieldPos);
     }
@@ -72,40 +72,40 @@ void StatusIndicators::doFieldSet() {
 
 void StatusIndicators::doSetColorForFieldPos(byte quad) {
   switch (quad) {
-  case BRI_QUAD_RED:
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 255, 0, 0);
+  case GIZMO_QUAD_RED:
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 0);
     break;
-  case BRI_QUAD_BLUE:
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 0, 0, 255);
+  case GIZMO_QUAD_BLUE:
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 255);
     break;
-  case BRI_QUAD_GREEN:
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 0, 255, 0);
+  case GIZMO_QUAD_GREEN:
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 255, 0);
     break;
-  case BRI_QUAD_YELLOW:
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 255, 255, 0);
+  case GIZMO_QUAD_YELLOW:
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 0);
     break;
-  case BRI_QUAD_PRACTICE:
-    pixels.setPixelColor(BRI_INDICATE_FIELD, 255, 255, 255);
+  case GIZMO_QUAD_PRACTICE:
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 255);
     break;
   }
 }
 
 void StatusIndicators::doBatterySet() {
   switch (batLevel) {
-  case BRI_BAT_FULL:
-    pixels.setPixelColor(BRI_INDICATE_BAT, 0, 255, 0);
+  case GIZMO_BAT_FULL:
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 0, 255, 0);
     break;
-  case BRI_BAT_GOOD:
-    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 255, 0);
+  case GIZMO_BAT_GOOD:
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 255, 0);
     break;
-  case BRI_BAT_PASS:
-    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 165, 0);
+  case GIZMO_BAT_PASS:
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 165, 0);
     break;
-  case BRI_BAT_DEAD:
-    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 0, 0);
+  case GIZMO_BAT_DEAD:
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 0, 0);
     break;
   default:
-    pixels.setPixelColor(BRI_INDICATE_BAT, 255, 0, 255);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 0, 255);
     break;
   }
 }
