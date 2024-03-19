@@ -6,6 +6,7 @@
 #include <ArduinoMqttClient.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include "LEAmDNS.h"
 
 // Team Number shouldn't be longer than 4 digits, but we'll use an int
 // anyway.
@@ -25,8 +26,8 @@ byte pinStatusPwrMainB;
 byte pinUserReset;
 
 StatusIndicators status(15, 3);
-WiFiClient wifi;
-MqttClient mqtt(wifi);
+WiFiClient network;
+MqttClient mqtt(network);
 
 CState cstate;
 BoardState boardState;
@@ -53,6 +54,7 @@ void netStateMachine();
 void netStateLinkSearch();
 void netStateWifiConnect();
 void netStateConnectWait();
+void netStateFMSDiscover();
 void netStateMQTTConnect();
 void netStateRun();
 
@@ -81,10 +83,6 @@ void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte mainA
 
 void ConfigureUserReset(byte rst) {
   pinUserReset = rst;
-}
-
-void ConfigureStatusPixels(byte pin, byte count) {
-  //status.begin(pin, count);
 }
 
 void ConfigureDefaultBroker(String broker) {
@@ -165,6 +163,9 @@ void netStateMachine() {
   case NET_CONNECT_WAIT:
     netStateConnectWait();
     break;
+  case NET_FMS_DISCOVER:
+    netStateFMSDiscover();
+    break;
   case NET_CONNECT_MQTT:
     netStateMQTTConnect();
     break;
@@ -210,7 +211,59 @@ void netStateConnectWait() {
   // flip the status forward.
   boardState.WifiReconnects++;
   status.SetWifiConnected(true);
-  netState = NET_CONNECT_MQTT;
+  netState = NET_FMS_DISCOVER;
+}
+
+void netStateFMSDiscover() {
+  IPAddress ip;
+  if (hostByName("gizmo-fms.comp", ip, 2000)) {
+    // This gets checked before we check any baked in values because
+    // this is how we know if we're connected to a competition mode
+    // field and we need to bail right here with a connection to that
+    // endpoint.
+    mqttBroker = ip.toString();
+    netState = NET_CONNECT_MQTT;
+    return;
+  }
+
+  if (ip.fromString(mqttBroker)) {
+    // The broker address was an IP and so we can just connect
+    // directly.
+    netState = NET_CONNECT_MQTT;
+    return;
+  }
+
+  if (hostByName(mqttBroker.c_str(), ip, 2000)) {
+    mqttBroker = ip.toString();
+    // We can jump directly to connect since this is a terminal
+    // address.
+    netState = NET_CONNECT_MQTT;
+    return;
+  }
+
+  // Welp, it wasn't a traditional IP or a hostname that the local DNS
+  // knew about.  Lets chance it with mDNS.
+  status.SetmDNSRunning(true);
+  MDNS.begin(hostname.c_str());
+
+  String svcName = String("gizmo") + teamNum;
+  int res = MDNS.queryService(svcName.c_str(), "tcp", 10000);
+  if (res == 0) {
+    MDNS.end();
+    status.SetmDNSRunning(false);
+    return;
+  }
+
+  for (int i = 0; i<res ; i++) {
+    if (MDNS.answerIP(i) == INADDR_ANY) {
+      continue;
+    }
+    mqttBroker = MDNS.answerIP(i).toString();
+    MDNS.end();
+    status.SetmDNSRunning(false);
+    netState = NET_CONNECT_MQTT;
+    return;
+  }
 }
 
 void netStateMQTTConnect() {

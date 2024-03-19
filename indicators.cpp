@@ -20,6 +20,10 @@ void StatusIndicators::SetWifiConnected(bool wifiState) {
   wifiConnected = wifiState;
 }
 
+void StatusIndicators::SetmDNSRunning(bool mdns) {
+  mdnsRunning = mdns;
+}
+
 void StatusIndicators::SetControlConnected(bool ctrlState) {
   ctrlConnected = ctrlState;
 }
@@ -38,6 +42,10 @@ void StatusIndicators::SetBatteryLevel(byte lvl) {
 
 void StatusIndicators::doWifiSet() {
   if (wifiConnected && ! ctrlConnected) {
+    if (mdnsRunning) {
+      pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 165, 0);
+      return;
+    }
     pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
   } else if (wifiConnected && ctrlConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 255, 0);
