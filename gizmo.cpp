@@ -48,6 +48,7 @@ JsonDocument fstateJSON;
 unsigned long nextControlPacketDueBy;
 unsigned long controlFrameAge;
 unsigned long netStateConnectTimeout;
+unsigned long nextStatusReportAt;
 
 // function declarations for "private" functions.
 void netStateMachine();
@@ -127,9 +128,15 @@ void GizmoSetup() {
 // through.  Not every one of these functions will do something, but
 // they do need to be ticked on each iteration.
 void GizmoTick() {
+  statusUpdate();
   status.Update();
   netStateMachine();
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
+  if (mqtt.connected() && nextStatusReportAt < millis()) {
+    statusReport();
+    nextStatusReportAt = millis() + 2000;
+  }
 }
 
 // SetWifiNet configures the wireless network out of a location that
@@ -409,10 +416,6 @@ void statusUpdate() {
 }
 
 void statusReport() {
-  // Fetch updated information
-  statusUpdate();
-
-  // Serialize State
   String output;
   JsonDocument posting;
   posting["ControlFrameAge"] = millis() - controlFrameAge;
