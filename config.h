@@ -1,5 +1,4 @@
 #include "Arduino.h"
-#include "params.h"
 
 // Pin assignments that are hardware specific.
 const byte GIZMO_HW_ADC_BOARD_VOLTAGE = 28;

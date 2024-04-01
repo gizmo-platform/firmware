@@ -1,9 +1,7 @@
 #include "config.h"
-#include "secrets.h"
 #include "gizmo.h"
 
 void setup() {
-  SetWifiNet(GIZMO_PRIVATE_WIFI_SSID, GIZMO_PRIVATE_WIFI_PSK);
   ConfigureStatusIO(
                     GIZMO_HW_ADC_BOARD_VOLTAGE,
                     GIZMO_HW_PWR_BOARD,
@@ -12,8 +10,6 @@ void setup() {
                     GIZMO_HW_PWR_MAIN_A,
                     GIZMO_HW_PWR_MAIN_B
                     );
-  ConfigureTeamNumber(GIZMO_PUBLIC_TEAM_NUMBER);
-  ConfigureDefaultBroker(GIZMO_PUBLIC_MQTT_BROKER);
   GizmoSetup();
 }
 

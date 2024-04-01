@@ -2,6 +2,20 @@
 #define GIZMO_H
 #include "Arduino.h"
 
+struct Config {
+  bool loaded;
+
+  int teamNumber;
+  char hostname[32];
+
+  String mqttBroker;
+  String mqttTopicControl;
+  String mqttTopicLocation;
+  String mqttTopicStats;
+  String netSSID;
+  String netPSK;
+};
+
 struct CState {
   byte Axis0;
   byte Axis1;
@@ -37,6 +51,13 @@ struct BoardState {
   bool PwrGPIO;
   bool PwrMainA;
   bool PwrMainB;
+};
+
+enum CfgState {
+  CFG_INIT,
+  CFG_REQUEST,
+  CFG_LOAD,
+  CFG_REBOOT,
 };
 
 enum NetState {

@@ -18,6 +18,13 @@
 #define GIZMO_BAT_PASS 2
 #define GIZMO_BAT_DEAD 1
 
+enum ConfigStatus {
+  CFG_NO_FILE,
+  CFG_BAD_PARSE,
+  CFG_BAD,
+  CFG_OK,
+};
+
 const unsigned long blinkFieldNum[3][6] = { { 500, 100 }, { 500, 100, 100, 100 }, {500, 100, 100, 100, 100, 100}};
 const byte blinkFieldLen[] = { 2, 4, 6 };
 class StatusIndicators
@@ -31,11 +38,14 @@ public:
   void SetFieldNumber(int);
   void SetFieldQuadrant(int);
   void SetBatteryLevel(byte);
+  void SetConfigStatus(ConfigStatus);
 private:
   Adafruit_NeoPixel pixels;
-  uint32_t toggleNetworkAt;
   uint32_t toggleFieldAt;
+  uint32_t toggleCfgAt;
+  ConfigStatus cfgStatus;
   byte toggleFieldCnt;
+  byte toggleCfgCnt;
   byte fieldPos;
   byte fieldNum;
   byte batLevel;
@@ -46,6 +56,7 @@ private:
   void doFieldSet();
   void doSetColorForFieldPos(byte);
   void doBatterySet();
+  void doCfgSet();
   uint32_t wheel(byte);
 };
 

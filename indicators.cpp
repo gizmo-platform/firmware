@@ -10,9 +10,13 @@ StatusIndicators::StatusIndicators(int pin, int count) {
 }
 
 void StatusIndicators::Update() {
-  doWifiSet();
-  doFieldSet();
-  doBatterySet();
+  if (cfgStatus != CFG_OK) {
+    doCfgSet();
+  } else {
+    doWifiSet();
+    doFieldSet();
+    doBatterySet();
+  }
   pixels.show();
 }
 
@@ -38,6 +42,10 @@ void StatusIndicators::SetFieldNumber(int num) {
 
 void StatusIndicators::SetBatteryLevel(byte lvl) {
   batLevel = lvl;
+}
+
+void StatusIndicators::SetConfigStatus(ConfigStatus c) {
+  cfgStatus = c;
 }
 
 void StatusIndicators::doWifiSet() {
@@ -115,6 +123,32 @@ void StatusIndicators::doBatterySet() {
   default:
     pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 0, 255);
     break;
+  }
+}
+
+void StatusIndicators::doCfgSet() {
+  if (toggleCfgAt < millis()) {
+    toggleCfgAt = millis() + 125;
+    toggleCfgCnt++;
+    if (toggleCfgCnt % 2 == 0) {
+      pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 0, 0);
+      pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 0);
+    } else {
+      switch (cfgStatus) {
+      case CFG_NO_FILE:
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 0);
+        break;
+      case CFG_BAD_PARSE:
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 255);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 255);
+        break;
+      case CFG_BAD:
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 0);
+        break;
+      }
+    }
   }
 }
 

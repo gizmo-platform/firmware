@@ -7,10 +7,10 @@
 #include <WiFi.h>
 #include <Wire.h>
 #include "LEAmDNS.h"
+#include "LittleFS.h"
 
-// Team Number shouldn't be longer than 4 digits, but we'll use an int
-// anyway.
-int teamNum;
+Config cfg;
+CfgState cfgState = CFG_INIT;
 
 // Should really be const, but we don't know these until after
 // initialization.
@@ -33,14 +33,7 @@ CState cstate;
 BoardState boardState;
 NetState netState;
 
-String hostname;
 String fieldLocation;
-String mqttTopicControl;
-String mqttTopicLocation;
-String mqttTopicStats;
-String mqttBroker;
-String netSSID;
-String netPSK;
 
 JsonDocument cstateJSON;
 JsonDocument fstateJSON;
@@ -51,6 +44,10 @@ unsigned long netStateConnectTimeout;
 unsigned long nextStatusReportAt;
 
 // function declarations for "private" functions.
+bool loadConfig(String);
+void loadConfigFromSerial();
+void checkIfShouldConfig();
+
 void netStateMachine();
 void netStateLinkSearch();
 void netStateWifiConnect();
@@ -68,11 +65,6 @@ void wireRespond();
 void statusUpdate();
 void statusReport();
 
-void ConfigureTeamNumber(int team) {
-  teamNum = team;
-  hostname = String("robot") + team;
-}
-
 void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte mainA, byte mainB) {
   pinStatusPwrSupply = supply;
   pinStatusPwrBoard = board;
@@ -84,10 +76,6 @@ void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte mainA
 
 void ConfigureUserReset(byte rst) {
   pinUserReset = rst;
-}
-
-void ConfigureDefaultBroker(String broker) {
-  mqttBroker = broker;
 }
 
 void GizmoSetup() {
@@ -108,16 +96,13 @@ void GizmoSetup() {
   pinMode(pinStatusPwrMainB, INPUT);
   pinMode(pinUserReset, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(9600);
 
-  WiFi.setHostname(hostname.c_str());
+  loadConfig("/gsscfg.json");
+
+  WiFi.setHostname(cfg.hostname);
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
-
-  String teamNumStr = String(teamNum);
-
-  mqttTopicControl  = "robot/" + teamNumStr + "/gamepad";
-  mqttTopicLocation = "robot/" + teamNumStr + "/location";
-  mqttTopicStats    = "robot/" + teamNumStr + "/stats";
 
   statusUpdate();
   status.Update();
@@ -130,20 +115,18 @@ void GizmoSetup() {
 void GizmoTick() {
   statusUpdate();
   status.Update();
-  netStateMachine();
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-  if (mqtt.connected() && nextStatusReportAt < millis()) {
-    statusReport();
-    nextStatusReportAt = millis() + 2000;
+  if (cfg.loaded) {
+    checkIfShouldConfig();
+    netStateMachine();
+    if (mqtt.connected() && nextStatusReportAt < millis()) {
+      statusReport();
+      nextStatusReportAt = millis() + 2000;
+    }
+  } else {
+    loadConfigFromSerial();
   }
-}
-
-// SetWifiNet configures the wireless network out of a location that
-// is not contained in this class.
-void SetWifiNet(String ssid, String psk) {
-  netSSID = ssid;
-  netPSK = psk;
 }
 
 // WireSetup binds the I2C bus for core 1 to be able to talk to the
@@ -154,6 +137,109 @@ void WireSetup(int SDA, int SCL) {
   Wire1.begin(8);
 
   Wire1.onRequest(wireRespond);
+}
+
+bool loadConfig(String path) {
+  delay(3000);
+  Serial.println("GIZMO_LOAD_ATTEMPT");
+  bool err = false;
+  LittleFSConfig lcfg;
+  lcfg.setAutoFormat(false);
+  LittleFS.setConfig(lcfg);
+
+  if (!LittleFS.begin()) {
+    Serial.println("GIZMO_LOAD_FAIL_NOFILE");
+    status.SetConfigStatus(CFG_NO_FILE);
+    LittleFS.end();
+    return false;
+  }
+
+  JsonDocument cfgDoc;
+  auto f = LittleFS.open(path.c_str(), "r");
+  auto error = deserializeJson(cfgDoc, f);
+  if (error) {
+    Serial.println("GIZMO_LOAD_FAIL_BADPARSE");
+    status.SetConfigStatus(CFG_BAD_PARSE);
+    f.close();
+    LittleFS.end();
+    return false;
+  } else {
+    Serial.println("GIZMO_LOAD_JSON_OK");
+  }
+
+  cfg.teamNumber = cfgDoc["Team"] | -1;
+  cfg.mqttBroker = cfgDoc["ServerIP"] | "gizmo-ds";
+  cfg.netSSID = cfgDoc["NetSSID"] | "";
+  cfg.netPSK = cfgDoc["NetPSK"] | "";
+
+  if (cfg.teamNumber == -1 || !cfg.netSSID.length() || !cfg.netPSK.length()) {
+    status.SetConfigStatus(CFG_BAD);
+    Serial.println("GIZMO_LOAD_FAIL_BADFILE");
+    f.close();
+    LittleFS.end();
+    return false;
+  }
+
+  cfg.mqttTopicControl = String("robot/") + cfg.teamNumber + String("/control");
+  cfg.mqttTopicLocation = String("robot/") + cfg.teamNumber + String("/location");
+  cfg.mqttTopicStats = String("robot/") + cfg.teamNumber + String("/stats");
+
+  status.SetConfigStatus(CFG_OK);
+  cfg.loaded = true;
+  Serial.println("GIZMO_LOAD_CFG_OK");
+  f.close();
+  LittleFS.end();
+  return true;
+}
+
+void loadConfigFromSerial() {
+  switch (cfgState) {
+  case CFG_INIT:
+    status.SetConfigStatus(CFG_NO_FILE);
+    if (millis() > 2000) {
+      cfgState = CFG_REQUEST;
+    }
+    break;
+  case CFG_REQUEST:
+    Serial.println("GIZMO_REQUEST_CONFIG");
+    cfgState = CFG_LOAD;
+    break;
+  case CFG_LOAD:
+    if (Serial.available()) {
+      String c = Serial.readStringUntil('\n');
+      if (c != NULL) {
+        LittleFS.begin();
+        File f = LittleFS.open("/gsscfg.json", "w");
+        f.write(c.c_str());
+        f.close();
+        LittleFS.end();
+        cfgState = CFG_REBOOT;
+        Serial.println("GIZMO_CONFIG_UPDATED");
+      }
+    }
+    break;
+  case CFG_REBOOT:
+    rp2040.wdt_begin(8);
+    while (true);
+    break;
+  }
+}
+
+void checkIfShouldConfig() {
+  static bool configWaiting;
+  static unsigned long checkAt;
+
+  if (!BOOTSEL) {
+    configWaiting = false;
+  } else {
+    if (!configWaiting) {
+      checkAt = millis() + 2000;
+    }
+    configWaiting = true;
+    if (millis() > checkAt) {
+      cfg.loaded = false;
+    }
+  }
 }
 
 // netStateMachine handles all the various state transitions of the
@@ -194,7 +280,7 @@ void netStateLinkSearch() {
 
 void netStateWifiConnect() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(netSSID.c_str(), netPSK.c_str());
+  WiFi.begin(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
   netStateConnectTimeout = millis() + 30000;
   netState = NET_CONNECT_WAIT;
@@ -228,20 +314,20 @@ void netStateFMSDiscover() {
     // this is how we know if we're connected to a competition mode
     // field and we need to bail right here with a connection to that
     // endpoint.
-    mqttBroker = ip.toString();
+    cfg.mqttBroker = ip.toString();
     netState = NET_CONNECT_MQTT;
     return;
   }
 
-  if (ip.fromString(mqttBroker)) {
+  if (ip.fromString(cfg.mqttBroker)) {
     // The broker address was an IP and so we can just connect
     // directly.
     netState = NET_CONNECT_MQTT;
     return;
   }
 
-  if (hostByName(mqttBroker.c_str(), ip, 2000)) {
-    mqttBroker = ip.toString();
+  if (hostByName(cfg.mqttBroker.c_str(), ip, 2000)) {
+    cfg.mqttBroker = ip.toString();
     // We can jump directly to connect since this is a terminal
     // address.
     netState = NET_CONNECT_MQTT;
@@ -251,9 +337,9 @@ void netStateFMSDiscover() {
   // Welp, it wasn't a traditional IP or a hostname that the local DNS
   // knew about.  Lets chance it with mDNS.
   status.SetmDNSRunning(true);
-  MDNS.begin(hostname.c_str());
+  MDNS.begin(cfg.hostname);
 
-  String svcName = String("gizmo") + teamNum;
+  String svcName = String("gizmo") + cfg.teamNumber;
   int res = MDNS.queryService(svcName.c_str(), "tcp", 10000);
   if (res == 0) {
     MDNS.end();
@@ -265,7 +351,7 @@ void netStateFMSDiscover() {
     if (MDNS.answerIP(i) == INADDR_ANY) {
       continue;
     }
-    mqttBroker = MDNS.answerIP(i).toString();
+    cfg.mqttBroker = MDNS.answerIP(i).toString();
     MDNS.end();
     status.SetmDNSRunning(false);
     netState = NET_CONNECT_MQTT;
@@ -274,14 +360,14 @@ void netStateFMSDiscover() {
 }
 
 void netStateMQTTConnect() {
-  if (!mqtt.connect(mqttBroker.c_str(), 1883)) {
+  if (!mqtt.connect(cfg.mqttBroker.c_str(), 1883)) {
     return;
   }
 
   // Like and Subscribe
   mqtt.onMessage(mqttParseMessage);
-  mqtt.subscribe(mqttTopicControl);
-  mqtt.subscribe(mqttTopicLocation);
+  mqtt.subscribe(cfg.mqttTopicControl);
+  mqtt.subscribe(cfg.mqttTopicLocation);
   nextControlPacketDueBy = millis() + 30000;
   netState = NET_RUNNING;
 }
@@ -308,9 +394,9 @@ void mqttParseMessage(int messageSize) {
   nextControlPacketDueBy = millis() + 500;
   status.SetControlConnected(true);
 
-  if (mqtt.messageTopic() == mqttTopicControl) {
+  if (mqtt.messageTopic() == cfg.mqttTopicControl) {
     mqttParseControl();
-  } else if (mqtt.messageTopic() == mqttTopicLocation) {
+  } else if (mqtt.messageTopic() == cfg.mqttTopicLocation) {
     mqttParseLocation();
   }
 }
@@ -433,7 +519,7 @@ void statusReport() {
   serializeJson(posting, output);
 
   // Push to the FMS
-  mqtt.beginMessage(mqttTopicStats);
+  mqtt.beginMessage(cfg.mqttTopicStats);
   mqtt.print(output);
   mqtt.endMessage();
 }
