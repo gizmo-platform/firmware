@@ -172,6 +172,8 @@ bool loadConfig(String path) {
   cfg.netSSID = cfgDoc["NetSSID"] | "";
   cfg.netPSK = cfgDoc["NetPSK"] | "";
 
+  sprintf(cfg.hostname, "gizmo-%d", cfg.teamNumber);
+
   if (cfg.teamNumber == -1 || !cfg.netSSID.length() || !cfg.netPSK.length()) {
     status.SetConfigStatus(CFG_BAD);
     Serial.println("GIZMO_LOAD_FAIL_BADFILE");
