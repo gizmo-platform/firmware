@@ -182,7 +182,7 @@ bool loadConfig(String path) {
     return false;
   }
 
-  cfg.mqttTopicControl = String("robot/") + cfg.teamNumber + String("/control");
+  cfg.mqttTopicControl = String("robot/") + cfg.teamNumber + String("/gamepad");
   cfg.mqttTopicLocation = String("robot/") + cfg.teamNumber + String("/location");
   cfg.mqttTopicStats = String("robot/") + cfg.teamNumber + String("/stats");
 
@@ -221,7 +221,9 @@ void loadConfigFromSerial() {
     }
     break;
   case CFG_REBOOT:
-    rp2040.wdt_begin(8);
+    // Long enough to take your finger off so that you don't get stuck
+    // in DFU mode.
+    rp2040.wdt_begin(1000);
     while (true);
     break;
   }
@@ -405,9 +407,7 @@ void netStateRun() {
 }
 
 void mqttParseMessage(int messageSize) {
-  Serial.println("GIZMO_MQTT_MSG");
-
-  nextControlPacketDueBy = millis() + 500;
+  nextControlPacketDueBy = millis() + 5000;
   status.SetControlConnected(true);
 
   if (mqtt.messageTopic() == cfg.mqttTopicControl) {
@@ -418,6 +418,7 @@ void mqttParseMessage(int messageSize) {
 }
 
 void mqttParseControl() {
+  Serial.println("GIZMO_MQTT_MSG_CONTROL");
   deserializeJson(cstateJSON, mqtt);
   cstate.Button0  = cstateJSON["ButtonX"];
   cstate.Button1  = cstateJSON["ButtonA"];
@@ -444,6 +445,7 @@ void mqttParseControl() {
 }
 
 void mqttParseLocation() {
+  Serial.println("GIZMO_MQTT_MSG_LOCATION");
   deserializeJson(fstateJSON, mqtt);
   status.SetFieldNumber(fstateJSON["Field"]);
 
