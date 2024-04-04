@@ -144,7 +144,7 @@ bool loadConfig(String path) {
   Serial.println("GIZMO_LOAD_ATTEMPT");
   bool err = false;
   LittleFSConfig lcfg;
-  lcfg.setAutoFormat(false);
+  lcfg.setAutoFormat(true);
   LittleFS.setConfig(lcfg);
 
   if (!LittleFS.begin()) {
@@ -279,6 +279,7 @@ void netStateLinkSearch() {
 }
 
 void netStateWifiConnect() {
+  Serial.println("GIZMO_NET_WIFI_START");
   WiFi.mode(WIFI_STA);
   WiFi.begin(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
@@ -305,6 +306,7 @@ void netStateConnectWait() {
   boardState.WifiReconnects++;
   status.SetWifiConnected(true);
   netState = NET_FMS_DISCOVER;
+  Serial.println("GIZMO_NET_WIFI_RUN");
 }
 
 void netStateFMSDiscover() {
@@ -316,6 +318,7 @@ void netStateFMSDiscover() {
     // endpoint.
     cfg.mqttBroker = ip.toString();
     netState = NET_CONNECT_MQTT;
+    Serial.println("GIZMO_FMS_DISCOVERED_COMP");
     return;
   }
 
@@ -323,6 +326,7 @@ void netStateFMSDiscover() {
     // The broker address was an IP and so we can just connect
     // directly.
     netState = NET_CONNECT_MQTT;
+    Serial.println("GIZMO_FMS_DISCOVERED_IP");
     return;
   }
 
@@ -331,11 +335,13 @@ void netStateFMSDiscover() {
     // We can jump directly to connect since this is a terminal
     // address.
     netState = NET_CONNECT_MQTT;
+    Serial.println("GIZMO_FMS_DISCOVERED_HOSTNAME");
     return;
   }
 
   // Welp, it wasn't a traditional IP or a hostname that the local DNS
   // knew about.  Lets chance it with mDNS.
+  Serial.println("GIZMO_FMS_DISCOVERY_MDNS_START");
   status.SetmDNSRunning(true);
   MDNS.begin(cfg.hostname);
 
@@ -343,6 +349,7 @@ void netStateFMSDiscover() {
   int res = MDNS.queryService(svcName.c_str(), "tcp", 10000);
   if (res == 0) {
     MDNS.end();
+    Serial.println("GIZMO_FMS_DISCOVERY_MDNS_NOANSWER");
     status.SetmDNSRunning(false);
     return;
   }
@@ -355,14 +362,17 @@ void netStateFMSDiscover() {
     MDNS.end();
     status.SetmDNSRunning(false);
     netState = NET_CONNECT_MQTT;
+    Serial.println("GIZMO_FMS_DISCOVERY_MDNS_STOP");
     return;
   }
 }
 
 void netStateMQTTConnect() {
   if (!mqtt.connect(cfg.mqttBroker.c_str(), 1883)) {
+    Serial.println("GIZMO_MQTT_CONNECT_FAIL");
     return;
   }
+  Serial.println("GIZMO_MQTT_CONNECT_OK");
 
   // Like and Subscribe
   mqtt.onMessage(mqttParseMessage);
@@ -376,12 +386,14 @@ void netStateRun() {
   if (!WiFi.connected()) {
     netState = NET_SEARCH;
     status.SetControlConnected(false);
+    Serial.println("GIZMO_NET_DISCONNECT");
     return;
   }
 
   if (nextControlPacketDueBy < millis()) {
     netState = NET_CONNECT_MQTT;
     status.SetControlConnected(false);
+    Serial.println("GIZMO_MQTT_DISCONNECT");
     return;
   }
 
@@ -391,6 +403,8 @@ void netStateRun() {
 }
 
 void mqttParseMessage(int messageSize) {
+  Serial.println("GIZMO_MQTT_MSG");
+
   nextControlPacketDueBy = millis() + 500;
   status.SetControlConnected(true);
 
