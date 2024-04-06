@@ -1,0 +1,36 @@
+---
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          fetch-depth: 0
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Build
+        run: arduino-cli compile --profile gizmo --output-dir out .
+
+      - name: Collect
+        run: mv out/firmware.ino.uf2 out/gss_${GITHUB_REF#refs/*/}.uf2
+
+      - name: Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/gss_*.uf2
+          generate_release_notes: true
+          fail_on_unmatched_files: true
