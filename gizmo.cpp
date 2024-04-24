@@ -315,7 +315,7 @@ void netStateConnectWait() {
 
 void netStateFMSDiscover() {
   IPAddress ip;
-  if (hostByName("gizmo-fms.comp", ip, 2000)) {
+  if (hostByName("fms.gizmo", ip, 2000)) {
     // This gets checked before we check any baked in values because
     // this is how we know if we're connected to a competition mode
     // field and we need to bail right here with a connection to that
