@@ -13,19 +13,15 @@ void StatusIndicators::Update() {
   if (cfgStatus != CFG_OK) {
     doCfgSet();
   } else {
-    doWifiSet();
+    doNetSet();
     doFieldSet();
     doBatterySet();
   }
   pixels.show();
 }
 
-void StatusIndicators::SetWifiConnected(bool wifiState) {
-  wifiConnected = wifiState;
-}
-
-void StatusIndicators::SetmDNSRunning(bool mdns) {
-  mdnsRunning = mdns;
+void StatusIndicators::SetNetConnected(bool netState) {
+  netConnected = netState;
 }
 
 void StatusIndicators::SetControlConnected(bool ctrlState) {
@@ -48,14 +44,10 @@ void StatusIndicators::SetConfigStatus(ConfigStatus c) {
   cfgStatus = c;
 }
 
-void StatusIndicators::doWifiSet() {
-  if (wifiConnected && ! ctrlConnected) {
-    if (mdnsRunning) {
-      pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 165, 0);
-      return;
-    }
+void StatusIndicators::doNetSet() {
+  if (netConnected && ! ctrlConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
-  } else if (wifiConnected && ctrlConnected) {
+  } else if (netConnected && ctrlConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 255, 0);
   } else {
     pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 0);
@@ -63,10 +55,10 @@ void StatusIndicators::doWifiSet() {
 }
 
 void StatusIndicators::doFieldSet() {
-  if (! wifiConnected) {
+  if (! netConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 0);
     return;
-  } else if ( wifiConnected && ! ctrlConnected) {
+  } else if ( netConnected && ! ctrlConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_FIELD, wheel((millis() / 5) % 255));
     return;
   }

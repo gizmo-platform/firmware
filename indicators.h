@@ -32,8 +32,7 @@ class StatusIndicators
 public:
   StatusIndicators(int, int);
   void Update();
-  void SetWifiConnected(bool);
-  void SetmDNSRunning(bool);
+  void SetNetConnected(bool);
   void SetControlConnected(bool);
   void SetFieldNumber(int);
   void SetFieldQuadrant(int);
@@ -49,9 +48,8 @@ private:
   byte fieldPos;
   byte fieldNum;
   byte batLevel;
-  bool wifiConnected;
+  bool netConnected;
   bool ctrlConnected;
-  bool mdnsRunning;
   void doWifiSet();
   void doFieldSet();
   void doSetColorForFieldPos(byte);

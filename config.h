@@ -1,5 +1,12 @@
 #include "Arduino.h"
 
+// ETHERNET MAGIC PINS
+//BUILT_IN
+const byte GIZMO_HW_ENET_CS = 1;
+//ON_HEADER
+//const byte GIZMO_HW_ENET_CS = 13;
+//
+
 // Pin assignments that are hardware specific.
 const byte GIZMO_HW_ADC_BOARD_VOLTAGE = 28;
 const byte GIZMO_HW_PWR_BOARD = 6;

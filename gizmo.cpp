@@ -1,12 +1,14 @@
 #include "gizmo.h"
+#include "config.h"
 
 #include "Arduino.h"
 #include "indicators.h"
+#include <SPI.h>
+#include <Ethernet.h>
 #include <ArduinoJson.h>
 #include <ArduinoMqttClient.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include "LEAmDNS.h"
 #include "LittleFS.h"
 
 Config cfg;
@@ -26,8 +28,11 @@ byte pinStatusPwrMainB;
 byte pinUserReset;
 
 StatusIndicators status(15, 3);
-WiFiClient network;
-MqttClient mqtt(network);
+WiFiClient wifi_network;
+EthernetClient enet_network;
+MqttClient wifi_mqtt(wifi_network);
+MqttClient enet_mqtt(enet_network);
+MqttClient *mqtt;
 
 CState cstate;
 BoardState boardState;
@@ -48,10 +53,12 @@ bool loadConfig(String);
 void loadConfigFromSerial();
 void checkIfShouldConfig();
 
+bool netLinkOk();
 void netStateMachine();
 void netStateLinkSearch();
 void netStateWifiConnect();
-void netStateConnectWait();
+void netStateEnetConnect();
+void netStateConnectWaitWifi();
 void netStateFMSDiscover();
 void netStateMQTTConnect();
 void netStateRun();
@@ -100,6 +107,18 @@ void GizmoSetup() {
 
   loadConfig("/gsscfg.json");
 
+  // We set SPI here for the wiznet breakout
+  SPI.setRX(0);
+  SPI.setTX(3);
+  SPI.setSCK(2);
+  // We set SPI1 here to be correct for the only possible breakout on the board
+  SPI1.setRX(12);
+  SPI1.setTX(11);
+  SPI1.setSCK(14);
+
+  // Does not take an SPI object. Change the library to change which SPI.
+  Ethernet.init(GIZMO_HW_ENET_CS);
+
   WiFi.setHostname(cfg.hostname);
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
@@ -120,7 +139,7 @@ void GizmoTick() {
   if (cfg.loaded) {
     checkIfShouldConfig();
     netStateMachine();
-    if (mqtt.connected() && nextStatusReportAt < millis()) {
+    if (mqtt->connected() && nextStatusReportAt < millis()) {
       statusReport();
       nextStatusReportAt = millis() + 2000;
     }
@@ -257,19 +276,50 @@ void checkIfShouldConfig() {
   }
 }
 
+// netLinkOk gives us an easy way to change network state to NET_SEARCH
+// in a consistent way that minimizes the different ways this could
+// happen. A message gets printed, the neopixels are updated, and we go
+// back to searching for networks.
+//
+// This gates disconnection based on which mqtt client we assigned at
+// link time so we don't gain one link and then drop another, and miss
+// the transition.
+bool netLinkOk() {
+  EthernetLinkStatus linkStatus = Ethernet.linkStatus();
+  if ((mqtt == &wifi_mqtt && !WiFi.connected()) ||
+      (mqtt == &wifi_mqtt && linkStatus == LinkON) ||
+      (mqtt == &enet_mqtt && linkStatus != LinkON)) {
+    netState = NET_SEARCH;
+    Serial.println("GIZMO_NET_DISCONNECT");
+    status.SetControlConnected(false);
+    status.SetNetConnected(false);
+    return false;
+  }
+  return true;
+}
+
 // netStateMachine handles all the various state transitions of the
 // network.  It is ticked on every loop in order to avoid needing to
 // do any kind of timer management.
 void netStateMachine() {
+  // This has to be called at least once a second. It's fast though.
+  // But it does block for DHCP
+  if (Ethernet.maintain()) {
+    Serial.println("GIZMO_NET_ENET_DHCP_RENEWED");
+  }
+
   switch(netState) {
   case NET_SEARCH:
     netStateLinkSearch();
     break;
+  case NET_CONNECT_ENET:
+    netStateEnetConnect();
+    break;
   case NET_CONNECT_WIFI:
     netStateWifiConnect();
     break;
-  case NET_CONNECT_WAIT:
-    netStateConnectWait();
+  case NET_CONNECT_WAIT_WIFI:
+    netStateConnectWaitWifi();
     break;
   case NET_FMS_DISCOVER:
     netStateFMSDiscover();
@@ -289,8 +339,46 @@ void netStateLinkSearch() {
   // This function needs to check if we are in wifi or wired mode.
   // This is done by checking if the wired controller has a layer 1
   // link, because if it does it always wins.
+  // This function also performs the side quest of selecting the mqtt service.
 
+  switch(Ethernet.linkStatus()) {
+    case Unknown:
+      // Copied from Arduino documentation on the topic
+      if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+        Serial.println("Ethernet shield was not found.");
+      } else if (Ethernet.hardwareStatus() == EthernetW5500) {
+        Serial.println("W5500 Ethernet controller detected.");
+      } else {
+        Serial.println("UNSUPPORTED Ethernet controller detected.");
+      }
+      Serial.println("GIZMO_NET_ENET_NODEV");
+      break;
+    case LinkON:
+      netState = NET_CONNECT_ENET;
+      Serial.println("GIZMO_NET_ENET_ATTEMPT");
+      mqtt = &enet_mqtt;
+      return;
+    case LinkOFF:
+      Serial.println("GIZMO_NET_ENET_NOLINK");
+      break;
+  }
+
+  Serial.println("GIZMO_NET_WIFI_ATTEMPT");
+  mqtt = &wifi_mqtt;
   netState = NET_CONNECT_WIFI;
+}
+
+void netStateEnetConnect() {
+  Serial.println("GIZMO_NET_ENET_START");
+  // Administrative region
+  byte mac[] = {0x02, 0x00, 0x00, (cfg.teamNumber & 0xFF00) >> 8, cfg.teamNumber & 0xFF, 0x00};
+  if (Ethernet.begin(mac)) {
+    status.SetNetConnected(true);
+    Serial.println("GIZMO_NET_IP: " + Ethernet.localIP().toString());
+    netState = NET_FMS_DISCOVER;
+  } else {
+    netState = NET_SEARCH;
+  }
 }
 
 void netStateWifiConnect() {
@@ -299,10 +387,10 @@ void netStateWifiConnect() {
   WiFi.begin(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
   netStateConnectTimeout = millis() + 30000;
-  netState = NET_CONNECT_WAIT;
+  netState = NET_CONNECT_WAIT_WIFI;
 }
 
-void netStateConnectWait() {
+void netStateConnectWaitWifi() {
   if (!WiFi.connected()) {
     if (netStateConnectTimeout > millis()) {
       // We aren't connected yet, but we also aren't timed out.  Leave
@@ -319,24 +407,19 @@ void netStateConnectWait() {
   // If we've made it here, we're connected, so bump the counter and
   // flip the status forward.
   boardState.WifiReconnects++;
-  status.SetWifiConnected(true);
+  status.SetNetConnected(true);
+
+  Serial.println("GIZMO_NET_IP: " + WiFi.localIP().toString());
   netState = NET_FMS_DISCOVER;
   Serial.println("GIZMO_NET_WIFI_RUN");
 }
 
 void netStateFMSDiscover() {
-  IPAddress ip;
-  if (hostByName("fms.gizmo", ip, 2000)) {
-    // This gets checked before we check any baked in values because
-    // this is how we know if we're connected to a competition mode
-    // field and we need to bail right here with a connection to that
-    // endpoint.
-    cfg.mqttBroker = ip.toString();
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_COMP");
+  if (!netLinkOk()) {
     return;
   }
 
+  IPAddress ip;
   if (ip.fromString(cfg.mqttBroker)) {
     // The broker address was an IP and so we can just connect
     // directly.
@@ -345,64 +428,31 @@ void netStateFMSDiscover() {
     return;
   }
 
-  if (hostByName(cfg.mqttBroker.c_str(), ip, 2000)) {
-    cfg.mqttBroker = ip.toString();
-    // We can jump directly to connect since this is a terminal
-    // address.
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_HOSTNAME");
-    return;
-  }
-
-  // Welp, it wasn't a traditional IP or a hostname that the local DNS
-  // knew about.  Lets chance it with mDNS.
-  Serial.println("GIZMO_FMS_DISCOVERY_MDNS_START");
-  status.SetmDNSRunning(true);
-  MDNS.begin(cfg.hostname);
-
-  String svcName = String("gizmo") + cfg.teamNumber;
-  int res = MDNS.queryService(svcName.c_str(), "tcp", 10000);
-  if (res == 0) {
-    MDNS.end();
-    Serial.println("GIZMO_FMS_DISCOVERY_MDNS_NOANSWER");
-    status.SetmDNSRunning(false);
-    return;
-  }
-
-  for (int i = 0; i<res ; i++) {
-    if (MDNS.answerIP(i) == INADDR_ANY) {
-      continue;
-    }
-    cfg.mqttBroker = MDNS.answerIP(i).toString();
-    MDNS.end();
-    status.SetmDNSRunning(false);
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERY_MDNS_STOP");
-    return;
-  }
+  Serial.println("GIZMO_FMS_DISCOVER_FAIL");
 }
 
 void netStateMQTTConnect() {
-  mqtt.setId(cfg.hostname);
-  if (!mqtt.connect(cfg.mqttBroker.c_str(), 1883)) {
+  if (!netLinkOk()) {
+    return;
+  }
+
+  mqtt->setId(cfg.hostname);
+  if (!mqtt->connect(cfg.mqttBroker.c_str(), 1883)) {
     Serial.println("GIZMO_MQTT_CONNECT_FAIL");
     return;
   }
   Serial.println("GIZMO_MQTT_CONNECT_OK");
 
   // Like and Subscribe
-  mqtt.onMessage(mqttParseMessage);
-  mqtt.subscribe(cfg.mqttTopicControl);
-  mqtt.subscribe(cfg.mqttTopicLocation);
+  mqtt->onMessage(mqttParseMessage);
+  mqtt->subscribe(cfg.mqttTopicControl);
+  mqtt->subscribe(cfg.mqttTopicLocation);
   nextControlPacketDueBy = millis() + 30000;
   netState = NET_RUNNING;
 }
 
 void netStateRun() {
-  if (!WiFi.connected()) {
-    netState = NET_SEARCH;
-    status.SetControlConnected(false);
-    Serial.println("GIZMO_NET_DISCONNECT");
+  if (!netLinkOk()) {
     return;
   }
 
@@ -415,23 +465,23 @@ void netStateRun() {
 
   // If we made it this far then the network is still running, so do
   // the maintenance tasks for the network.
-  mqtt.poll();
+  mqtt->poll();
 }
 
 void mqttParseMessage(int messageSize) {
   nextControlPacketDueBy = millis() + 5000;
   status.SetControlConnected(true);
 
-  if (mqtt.messageTopic() == cfg.mqttTopicControl) {
+  if (mqtt->messageTopic() == cfg.mqttTopicControl) {
     mqttParseControl();
-  } else if (mqtt.messageTopic() == cfg.mqttTopicLocation) {
+  } else if (mqtt->messageTopic() == cfg.mqttTopicLocation) {
     mqttParseLocation();
   }
 }
 
 void mqttParseControl() {
   Serial.println("GIZMO_MQTT_MSG_CONTROL");
-  deserializeJson(cstateJSON, mqtt);
+  deserializeJson(cstateJSON, *mqtt);
   cstate.Button0  = cstateJSON["ButtonX"];
   cstate.Button1  = cstateJSON["ButtonA"];
   cstate.Button2  = cstateJSON["ButtonB"];
@@ -458,7 +508,7 @@ void mqttParseControl() {
 
 void mqttParseLocation() {
   Serial.println("GIZMO_MQTT_MSG_LOCATION");
-  deserializeJson(fstateJSON, mqtt);
+  deserializeJson(fstateJSON, *mqtt);
   status.SetFieldNumber(fstateJSON["Field"]);
 
   if (fstateJSON["Quadrant"] == "RED") {
@@ -549,7 +599,7 @@ void statusReport() {
   serializeJson(posting, output);
 
   // Push to the FMS
-  mqtt.beginMessage(cfg.mqttTopicStats);
-  mqtt.print(output);
-  mqtt.endMessage();
+  mqtt->beginMessage(cfg.mqttTopicStats);
+  mqtt->print(output);
+  mqtt->endMessage();
 }
