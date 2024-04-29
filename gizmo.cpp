@@ -372,6 +372,7 @@ void netStateFMSDiscover() {
 }
 
 void netStateMQTTConnect() {
+  mqtt.setId(cfg.hostname);
   if (!mqtt.connect(cfg.mqttBroker.c_str(), 1883)) {
     Serial.println("GIZMO_MQTT_CONNECT_FAIL");
     return;
