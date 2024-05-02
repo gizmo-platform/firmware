@@ -195,6 +195,9 @@ bool loadConfig(String path) {
 }
 
 void loadConfigFromSerial() {
+  static long _load_timeout = 0;
+  static String c;
+
   switch (cfgState) {
   case CFG_INIT:
     status.SetConfigStatus(CFG_NO_FILE);
@@ -204,20 +207,28 @@ void loadConfigFromSerial() {
     break;
   case CFG_REQUEST:
     Serial.println("GIZMO_REQUEST_CONFIG");
-    cfgState = CFG_LOAD;
+    _load_timeout = millis() + 15000;
+    cfgState = CFG_WAIT;
     break;
-  case CFG_LOAD:
+  case CFG_WAIT:
     if (Serial.available()) {
-      String c = Serial.readStringUntil('\n');
-      if (c != NULL) {
-        LittleFS.begin();
-        File f = LittleFS.open("/gsscfg.json", "w");
-        f.write(c.c_str());
-        f.close();
-        LittleFS.end();
-        cfgState = CFG_REBOOT;
-        Serial.println("GIZMO_CONFIG_UPDATED");
-      }
+      cfgState = CFG_LOAD;
+      break;
+    }
+    if (_load_timeout < millis()) {
+      cfgState = CFG_REQUEST;
+      break;
+    }
+  case CFG_LOAD:
+    c = Serial.readStringUntil('\n');
+    if (c != NULL) {
+      LittleFS.begin();
+      File f = LittleFS.open("/gsscfg.json", "w");
+      f.write(c.c_str());
+      f.close();
+      LittleFS.end();
+      cfgState = CFG_REBOOT;
+      Serial.println("GIZMO_CONFIG_UPDATED");
     }
     break;
   case CFG_REBOOT:

@@ -56,6 +56,7 @@ struct BoardState {
 enum CfgState {
   CFG_INIT,
   CFG_REQUEST,
+  CFG_WAIT,
   CFG_LOAD,
   CFG_REBOOT,
 };
