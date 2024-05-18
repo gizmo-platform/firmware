@@ -3,8 +3,12 @@
 // ETHERNET MAGIC PINS
 //BUILT_IN
 const byte GIZMO_HW_ENET_CS = 1;
+const byte GIZMO_HW_ENET_RST = 20;
+const byte GIZMO_HW_ENET_INT = -1;
 //ON_HEADER
-//const byte GIZMO_HW_ENET_CS = 13;
+/* const byte GIZMO_HW_ENET_CS = 13; */
+/* const byte GIZMO_HW_ENET_RST = 17; */
+/* const byte GIZMO_HW_ENET_INT = -1; */
 //
 
 // Pin assignments that are hardware specific.

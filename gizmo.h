@@ -64,8 +64,8 @@ enum CfgState {
 enum NetState {
   NET_SEARCH,
   NET_CONNECT_WIFI,
-  NET_CONNECT_ENET,
   NET_CONNECT_WAIT_WIFI,
+  NET_CONNECT_WAIT_ENET,
   NET_FMS_DISCOVER,
   NET_CONNECT_MQTT,
   NET_RUNNING,
@@ -79,6 +79,7 @@ enum NetLink {
 void ConfigureTeamNumber(int);
 void ConfigureStatusIO(byte, byte, byte, byte, byte, byte);
 void ConfigureUserReset(byte);
+void ConfigureWiznetReset(byte);
 void ConfigureDefaultBroker(String);
 void GizmoSetup();
 void GizmoTick();

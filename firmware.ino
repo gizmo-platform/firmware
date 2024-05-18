@@ -10,6 +10,7 @@ void setup() {
                     GIZMO_HW_PWR_MAIN_A,
                     GIZMO_HW_PWR_MAIN_B
                     );
+  ConfigureWiznetReset(GIZMO_HW_ENET_RST);
   GizmoSetup();
 }
 

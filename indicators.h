@@ -50,7 +50,7 @@ private:
   byte batLevel;
   bool netConnected;
   bool ctrlConnected;
-  void doWifiSet();
+  void doNetSet();
   void doFieldSet();
   void doSetColorForFieldPos(byte);
   void doBatterySet();
