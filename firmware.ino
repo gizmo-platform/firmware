@@ -7,10 +7,13 @@ void setup() {
                     GIZMO_HW_PWR_BOARD,
                     GIZMO_HW_PWR_PICO,
                     GIZMO_HW_PWR_GPIO,
+                    GIZMO_HW_PWR_SERVO,
                     GIZMO_HW_PWR_MAIN_A,
-                    GIZMO_HW_PWR_MAIN_B
+                    GIZMO_HW_PWR_MAIN_B,
+                    GIZMO_HW_PWR_PIXELS
                     );
   ConfigureWiznetReset(GIZMO_HW_ENET_RST);
+  ConfigureBoardVoltageTuning(GIZMO_HW_ADC_BOARD_VOLTAGE_M, GIZMO_HW_ADC_BOARD_VOLTAGE_B);
   GizmoSetup();
 }
 

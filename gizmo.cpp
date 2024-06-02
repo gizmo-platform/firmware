@@ -20,8 +20,13 @@ byte pinStatusPwrSupply;
 byte pinStatusPwrBoard;
 byte pinStatusPwrPico;
 byte pinStatusPwrGPIO;
+byte pinStatusPwrServo;
 byte pinStatusPwrMainA;
 byte pinStatusPwrMainB;
+byte pinStatusPwrPixels;
+
+float pinStatusPwrSupplyTuneM;
+float pinStatusPwrSupplyTuneB;
 
 // This is the pin that can be toggled to force the User Processor
 // into reset.
@@ -77,13 +82,20 @@ void wireRespond();
 void statusUpdate();
 void statusReport();
 
-void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte mainA, byte mainB) {
+void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte servo, byte mainA, byte mainB, byte pixels) {
   pinStatusPwrSupply = supply;
   pinStatusPwrBoard = board;
   pinStatusPwrPico = pico;
   pinStatusPwrGPIO = gpio;
+  pinStatusPwrServo = servo;
   pinStatusPwrMainA = mainA;
   pinStatusPwrMainB = mainB;
+  pinStatusPwrPixels = pixels;
+}
+
+void ConfigureBoardVoltageTuning(float m, float b) {
+  pinStatusPwrSupplyTuneM = m;
+  pinStatusPwrSupplyTuneB = b;
 }
 
 void ConfigureUserReset(byte rst) {
@@ -108,8 +120,11 @@ void GizmoSetup() {
   pinMode(pinStatusPwrBoard, INPUT);
   pinMode(pinStatusPwrPico, INPUT);
   pinMode(pinStatusPwrGPIO, INPUT);
+  pinMode(pinStatusPwrServo, INPUT);
   pinMode(pinStatusPwrMainA, INPUT);
   pinMode(pinStatusPwrMainB, INPUT);
+  pinMode(pinStatusPwrPixels, INPUT);
+
   pinMode(pinUserReset, OUTPUT);
   pinMode(pinWiznetReset, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -117,6 +132,8 @@ void GizmoSetup() {
   Serial.begin(9600);
 
   loadConfig("/gsscfg.json");
+  Serial.print("GIZMO_HARDWARE ");
+  Serial.println(GIZMO_HW_VERSION);
 
   // We set SPI here for the wiznet breakout
   SPI.setRX(0);
@@ -622,49 +639,53 @@ void statusUpdate() {
   boardState.WatchdogRemaining = 0;
   boardState.WatchdogOK = false;
   boardState.RSSI = WiFi.RSSI();
-  boardState.PwrBoard = digitalRead(pinStatusPwrBoard);
-  boardState.PwrPico  = digitalRead(pinStatusPwrPico);
-  boardState.PwrGPIO  = digitalRead(pinStatusPwrGPIO);
-  boardState.PwrMainA = digitalRead(pinStatusPwrMainA);
-  boardState.PwrMainB = digitalRead(pinStatusPwrMainB);
+  boardState.PwrBoard  = digitalRead(pinStatusPwrBoard);
+  boardState.PwrPico   = digitalRead(pinStatusPwrPico);
+  boardState.PwrGPIO   = digitalRead(pinStatusPwrGPIO);
+  boardState.PwrServo  = digitalRead(pinStatusPwrServo);
+  boardState.PwrMainA  = digitalRead(pinStatusPwrMainA);
+  boardState.PwrMainB  = digitalRead(pinStatusPwrMainB);
+  boardState.PwrPixels = digitalRead(pinStatusPwrPixels);
 
-  // This converts from what the ADC reads to a voltage that's pretty
-  // close to reality.  There's some slop in this calculation because
-  // we aren't really doing everything totally correct with all the
-  // analog biasing on the input.  This number was calculated by a
-  // linear regression over sampled values.
-  float voltage = 0.008833 * boardState.VBat + 0.3017;
+  // These are tuning constants that get defined on a per-hardware
+  // level since they're part of the board stepping.  To generate new
+  // ones set M to 1 and B to 0 and then collect a range of voltages
+  // and values and plot a linear fit.  R^2 should be very high as the
+  // ADC has near perfect linear response.
+  float voltage = pinStatusPwrSupplyTuneM * boardState.VBat + pinStatusPwrSupplyTuneB;
 
-  if (voltage>=8) {
+  if (voltage>=7.2) {
     status.SetBatteryLevel(GIZMO_BAT_FULL);
-  } else if (voltage<8 && voltage>=7.5) {
+  } else if (voltage<7.2 && voltage>=7) {
     status.SetBatteryLevel(GIZMO_BAT_GOOD);
-  } else if (voltage<7.5 && voltage>=7) {
+  } else if (voltage<7 && voltage>=6.5) {
     status.SetBatteryLevel(GIZMO_BAT_PASS);
-  } else if (voltage<7) {
+  } else if (voltage<6.5) {
     status.SetBatteryLevel(GIZMO_BAT_DEAD);
   }
 }
 
 void statusReport() {
-  String output;
   JsonDocument posting;
   posting["ControlFrameAge"] = millis() - controlFrameAge;
   posting["ControlFramesReceived"] = boardState.FramesReceived;
   posting["WifiReconnects"] = boardState.WifiReconnects;
   posting["VBat"] = boardState.VBat;
+  posting["VBatM"] = int(pinStatusPwrSupplyTuneM * 100000);
+  posting["VBatB"] = int(pinStatusPwrSupplyTuneB * 100000);
   posting["WatchdogRemaining"] = boardState.WatchdogRemaining;
   posting["RSSI"] = boardState.RSSI;
   posting["PwrBoard"] = boardState.PwrBoard;
   posting["PwrPico"] = boardState.PwrPico;
   posting["PwrGPIO"] = boardState.PwrGPIO;
+  posting["PwrServo"] = boardState.PwrServo;
   posting["PwrMainA"] = boardState.PwrMainA;
   posting["PwrMainB"] = boardState.PwrMainB;
+  posting["PwrPixels"] = boardState.PwrPixels;
   posting["WatchdogOK"] = boardState.WatchdogOK;
-  serializeJson(posting, output);
 
   // Push to the FMS
-  mqtt.beginMessage(cfg.mqttTopicStats);
-  mqtt.print(output);
+  mqtt.beginMessage(cfg.mqttTopicStats, (unsigned long)measureJson(posting));
+  serializeJson(posting, mqtt);
   mqtt.endMessage();
 }

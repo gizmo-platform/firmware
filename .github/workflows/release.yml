@@ -12,6 +12,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        hw_version:
+          - GIZMO_VERSION_R3B
+          - GIZMO_VERSION_R4B
+          - GIZMO_VERSION_R6E
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -49,8 +49,10 @@ struct BoardState {
   bool PwrBoard;
   bool PwrPico;
   bool PwrGPIO;
+  bool PwrServo;
   bool PwrMainA;
   bool PwrMainB;
+  bool PwrPixels;
 };
 
 enum CfgState {
@@ -77,7 +79,8 @@ enum NetLink {
 };
 
 void ConfigureTeamNumber(int);
-void ConfigureStatusIO(byte, byte, byte, byte, byte, byte);
+void ConfigureStatusIO(byte, byte, byte, byte, byte, byte, byte, byte);
+void ConfigureBoardVoltageTuning(float, float);
 void ConfigureUserReset(byte);
 void ConfigureWiznetReset(byte);
 void ConfigureDefaultBroker(String);
