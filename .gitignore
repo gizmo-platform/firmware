@@ -1,3 +1,5 @@
 secrets.h
 /build
 params.h
+out
+artifacts

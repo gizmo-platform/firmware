@@ -12,12 +12,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        hw_version:
-          - GIZMO_VERSION_R3B
-          - GIZMO_VERSION_R4B
-          - GIZMO_VERSION_R6E
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,14 +23,11 @@ jobs:
         uses: arduino/setup-arduino-cli@v1
 
       - name: Build
-        run: arduino-cli compile --profile gizmo --output-dir out .
-
-      - name: Collect
-        run: mv out/firmware.ino.uf2 out/gss_${GITHUB_REF#refs/*/}.uf2
+        run: bash -x .ci.sh
 
       - name: Upload
         uses: softprops/action-gh-release@v2
         with:
-          files: out/gss_*.uf2
+          files: artifacts/gss_*.uf2
           generate_release_notes: true
           fail_on_unmatched_files: true
