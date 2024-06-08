@@ -18,8 +18,6 @@ const byte GIZMO_HW_ENET_INT = -1;
 const byte GIZMO_HW_STATUS_NEOPIXELS_PIN = 15;
 const byte GIZMO_HW_STATUS_NEOPIXELS_CNT = 3;
 const byte GIZMO_HW_USER_RESET = 22;
-const byte GIZMO_HW_I2C_SDA = 18;
-const byte GIZMO_HW_I2C_SCL = 19;
 const byte GIZMO_HW_ADC_BOARD_VOLTAGE = 28;
 
 #ifdef GIZMO_VERSION_R3B
@@ -33,6 +31,8 @@ const byte GIZMO_HW_PWR_SERVO = -1;
 const byte GIZMO_HW_PWR_MAIN_A = 9;
 const byte GIZMO_HW_PWR_MAIN_B = 10;
 const byte GIZMO_HW_PWR_PIXELS = -1;
+const byte GIZMO_HW_I2C_SDA = 18;
+const byte GIZMO_HW_I2C_SCL = 19;
 
 #elifdef GIZMO_VERSION_R4B
 #define GIZMO_HW_VERSION "GIZMO_V00_R4B"
@@ -45,6 +45,8 @@ const byte GIZMO_HW_PWR_SERVO = -1;
 const byte GIZMO_HW_PWR_MAIN_A = 8;
 const byte GIZMO_HW_PWR_MAIN_B = 9;
 const byte GIZMO_HW_PWR_PIXELS = 10;
+const byte GIZMO_HW_I2C_SDA = 18;
+const byte GIZMO_HW_I2C_SCL = 19;
 
 #elifdef GIZMO_VERSION_R6E
 #define GIZMO_HW_VERSION "GIZMO_V00_R6E"
@@ -57,6 +59,8 @@ const byte GIZMO_HW_PWR_SERVO = 7;
 const byte GIZMO_HW_PWR_MAIN_A = 8;
 const byte GIZMO_HW_PWR_MAIN_B = 9;
 const byte GIZMO_HW_PWR_PIXELS = 10;
+const byte GIZMO_HW_I2C_SDA = 26;
+const byte GIZMO_HW_I2C_SCL = 27;
 
 #else
 #define GIZMO_HW_VERSION "GIZMO_UNKNOWN"
@@ -69,6 +73,8 @@ const byte GIZMO_HW_PWR_SERVO = -1;
 const byte GIZMO_HW_PWR_MAIN_A = -1;
 const byte GIZMO_HW_PWR_MAIN_B = -1;
 const byte GIZMO_HW_PWR_PIXELS = -1;
+const byte GIZMO_HW_I2C_SDA = 26;
+const byte GIZMO_HW_I2C_SCL = 27;
 #endif
 
 // Slow but standard serial speed
