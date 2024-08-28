@@ -5,7 +5,7 @@ StatusIndicators::StatusIndicators(int pin, int count) {
   pixels = Adafruit_NeoPixel(count, pin, NEO_GRB + NEO_KHZ800);
 
   pixels.begin();
-  pixels.setBrightness(20);
+  pixels.setBrightness(80);
   pixels.show();
 }
 
@@ -46,11 +46,13 @@ void StatusIndicators::SetConfigStatus(ConfigStatus c) {
 
 void StatusIndicators::doNetSet() {
   if (netConnected && ! ctrlConnected) {
-    pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 64, 64, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 255, 255, 0);
   } else if (netConnected && ctrlConnected) {
-    pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 0, 64, 0);
   } else {
-    pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_NET, 64, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 0, 255, 0);
   }
 }
 
@@ -60,6 +62,7 @@ void StatusIndicators::doFieldSet() {
     return;
   } else if ( netConnected && ! ctrlConnected) {
     pixels.setPixelColor(GIZMO_INDICATE_FIELD, wheel((millis() / 5) % 255));
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, wheel((millis() / 5) % 255));
     return;
   }
 
@@ -70,6 +73,7 @@ void StatusIndicators::doFieldSet() {
   if (toggleFieldAt < millis()) {
     if (toggleFieldCnt % 2 == 0) {
       pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 0);
+      pixels.setPixelColor(GIZMO_INDICATE_ORB, 0, 0, 0);
     } else {
       doSetColorForFieldPos(fieldPos);
     }
@@ -81,19 +85,24 @@ void StatusIndicators::doFieldSet() {
 void StatusIndicators::doSetColorForFieldPos(byte quad) {
   switch (quad) {
   case GIZMO_QUAD_RED:
-    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 0, 255, 0);
     break;
   case GIZMO_QUAD_BLUE:
-    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 255);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 0, 64);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 0, 0, 255);
     break;
   case GIZMO_QUAD_GREEN:
-    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 0, 64, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 255, 0, 0);
     break;
   case GIZMO_QUAD_YELLOW:
-    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 64, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 255, 255, 0);
     break;
   case GIZMO_QUAD_PRACTICE:
-    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 255);
+    pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 64, 64);
+    pixels.setPixelColor(GIZMO_INDICATE_ORB, 255, 255, 255);
     break;
   }
 }
@@ -101,19 +110,19 @@ void StatusIndicators::doSetColorForFieldPos(byte quad) {
 void StatusIndicators::doBatterySet() {
   switch (batLevel) {
   case GIZMO_BAT_FULL:
-    pixels.setPixelColor(GIZMO_INDICATE_BAT, 0, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 0, 64, 0);
     break;
   case GIZMO_BAT_GOOD:
-    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 255, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 64, 64, 0);
     break;
   case GIZMO_BAT_PASS:
-    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 165, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 64, 42, 0);
     break;
   case GIZMO_BAT_DEAD:
-    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 0, 0);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 64, 0, 0);
     break;
   default:
-    pixels.setPixelColor(GIZMO_INDICATE_BAT, 255, 0, 255);
+    pixels.setPixelColor(GIZMO_INDICATE_BAT, 64, 0, 64);
     break;
   }
 }
@@ -128,16 +137,16 @@ void StatusIndicators::doCfgSet() {
     } else {
       switch (cfgStatus) {
       case CFG_NO_FILE:
-        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 0);
-        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 64, 0, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 0, 0);
         break;
       case CFG_BAD_PARSE:
-        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 0, 255);
-        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 0, 255);
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 64, 0, 64);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 0, 64);
         break;
       case CFG_BAD:
-        pixels.setPixelColor(GIZMO_INDICATE_NET, 255, 255, 0);
-        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 255, 255, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_NET, 64, 64, 0);
+        pixels.setPixelColor(GIZMO_INDICATE_FIELD, 64, 64, 0);
         break;
       }
     }

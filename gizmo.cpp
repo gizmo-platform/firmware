@@ -35,7 +35,7 @@ byte pinUserReset;
 // This can be used to force the WizNet to reset
 byte pinWiznetReset;
 
-StatusIndicators status(15, 3);
+StatusIndicators status(15, 4);
 Wiznet5500lwIP eth(GIZMO_HW_ENET_CS, SPI, GIZMO_HW_ENET_INT);
 WiFiClient network;
 MqttClient mqtt(network);

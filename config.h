@@ -16,7 +16,7 @@ const byte GIZMO_HW_ENET_INT = -1;
 
 // Pin assignments that are hardware specific.
 const byte GIZMO_HW_STATUS_NEOPIXELS_PIN = 15;
-const byte GIZMO_HW_STATUS_NEOPIXELS_CNT = 3;
+const byte GIZMO_HW_STATUS_NEOPIXELS_CNT = 4;
 const byte GIZMO_HW_USER_RESET = 22;
 const byte GIZMO_HW_ADC_BOARD_VOLTAGE = 28;
 
