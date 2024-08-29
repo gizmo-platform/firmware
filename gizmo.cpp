@@ -157,6 +157,10 @@ void GizmoSetup() {
   byte d3 = (cfg.teamNumber % 1000) % 100 / 10 * 16;
   byte d4 = (cfg.teamNumber % 1000) % 100 % 10;
 
+  // Enable the hardware watchdog.  If we've gotten stuck for more
+  // than a second something has broken - badly.
+  rp2040.wdt_begin(5000);
+
   byte mac[] = {0x02, 0x00, 0x00, byte(d1+d2), byte(d3+d4), 0x00};
   netLinkResetWiznet();
   // Necessary to wait here to allow the Wiznet time to come back.
@@ -179,6 +183,7 @@ void GizmoSetup() {
 // through.  Not every one of these functions will do something, but
 // they do need to be ticked on each iteration.
 void GizmoTick() {
+  rp2040.wdt_reset();
   statusUpdate();
   status.Update();
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
@@ -206,7 +211,6 @@ void WireSetup(int SDA, int SCL) {
 }
 
 bool loadConfig(String path) {
-  delay(3000);
   Serial.println("GIZMO_LOAD_ATTEMPT");
   bool err = false;
   LittleFSConfig lcfg;
@@ -283,6 +287,7 @@ void loadConfigFromSerial() {
     cfgState = CFG_WAIT;
     break;
   case CFG_WAIT:
+    Serial.println("GIZMO_CONFIG_WAIT");
     if (Serial.available()) {
       cfgState = CFG_LOAD;
       break;
