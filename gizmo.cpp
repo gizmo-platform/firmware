@@ -39,6 +39,7 @@ StatusIndicators status(15, 4);
 Wiznet5500lwIP eth(GIZMO_HW_ENET_CS, SPI, GIZMO_HW_ENET_INT);
 WiFiClient network;
 MqttClient mqtt(network);
+IPAddress mqttIP;
 
 bool enetAvailable = false;
 
@@ -81,6 +82,8 @@ void wireRespond();
 
 void statusUpdate();
 void statusReport();
+
+void logMQTTError();
 
 void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte servo, byte mainA, byte mainB, byte pixels) {
   pinStatusPwrSupply = supply;
@@ -158,7 +161,7 @@ void GizmoSetup() {
   byte d4 = (cfg.teamNumber % 1000) % 100 % 10;
 
   // Enable the hardware watchdog.  If we've gotten stuck for more
-  // than a second something has broken - badly.
+  // than a few seconds something has broken - badly.
   rp2040.wdt_begin(5000);
 
   byte mac[] = {0x02, 0x00, 0x00, byte(d1+d2), byte(d3+d4), 0x00};
@@ -436,7 +439,7 @@ void netStateConnectWaitEnet() {
 void netStateWifiConnect() {
   Serial.println("GIZMO_NET_WIFI_START");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(cfg.netSSID.c_str(), cfg.netPSK.c_str());
+  WiFi.beginNoBlock(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
   netState = NET_CONNECT_WAIT_WIFI;
 }
@@ -459,6 +462,7 @@ void netStateConnectWaitWifi() {
   // flip the status forward.
   boardState.WifiReconnects++;
   status.SetNetConnected(true);
+  WiFi.setDNS(WiFi.dnsIP());
 
   Serial.println("GIZMO_NET_IP " + WiFi.localIP().toString());
   Serial.println("GIZMO_NET_DNS " + WiFi.dnsIP().toString());
@@ -468,6 +472,7 @@ void netStateConnectWaitWifi() {
 }
 
 void netStateFMSDiscover() {
+  Serial.println("GIZMO_FMS_DISCOVER_START");
   if (!netLinkOk()) {
     return;
   }
@@ -477,35 +482,34 @@ void netStateFMSDiscover() {
   // several edge cases with misbehaving DNS servers when using
   // external network controllers.
 
-  IPAddress ip;
-  if (!hostByName("nxdomain.gizmo", ip, 2000) && hostByName("fms.gizmo", ip, 2000)) {
+  if (!hostByName("nxdomain.gizmo", mqttIP, 2000) && hostByName("fms.gizmo", mqttIP, 2000)) {
     // This gets checked before we check any baked in values because
     // this is how we know if we're connected to a competition mode
     // field and we need to bail right here with a connection to that
     // endpoint.
-    cfg.mqttBroker = ip.toString();
+    cfg.mqttBroker = mqttIP.toString();
     netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_COMP " + ip.toString());
+    Serial.println("GIZMO_FMS_DISCOVERED_COMP " + mqttIP.toString());
     return;
   }
 
-  if (!hostByName("nxdomain.gizmo", ip, 2000) && hostByName("ds.gizmo", ip, 2000)) {
-    cfg.mqttBroker = ip.toString();
+  if (!hostByName("nxdomain.gizmo", mqttIP, 2000) && hostByName("ds.gizmo", mqttIP, 2000)) {
+    cfg.mqttBroker = mqttIP.toString();
     netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_DS " + ip.toString());
+    Serial.println("GIZMO_FMS_DISCOVERED_DS " + mqttIP.toString());
     return;
   }
 
-  if (hostByName(cfg.mqttBroker.c_str(), ip, 2000)) {
-    cfg.mqttBroker = ip.toString();
+  if (hostByName(cfg.mqttBroker.c_str(), mqttIP, 2000)) {
+    cfg.mqttBroker = mqttIP.toString();
     // We can jump directly to connect since this is a terminal
     // address.
     netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_HOSTNAME " + ip.toString());
+    Serial.println("GIZMO_FMS_DISCOVERED_HOSTNAME " + mqttIP.toString());
     return;
   }
 
-  if (ip.fromString(cfg.mqttBroker)) {
+  if (mqttIP.fromString(cfg.mqttBroker)) {
     // The broker address was an IP and so we can just connect
     // directly.
     netState = NET_CONNECT_MQTT;
@@ -515,13 +519,16 @@ void netStateFMSDiscover() {
 }
 
 void netStateMQTTConnect() {
+  Serial.println("GIZMO_MQTT_CONNECT_START");
   if (!netLinkOk()) {
     return;
   }
 
   mqtt.setId(cfg.hostname);
-  if (!mqtt.connect(cfg.mqttBroker.c_str(), 1883)) {
-    Serial.println("GIZMO_MQTT_CONNECT_FAIL");
+  mqtt.setConnectionTimeout(100);
+  Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
+  if (!mqtt.connect(mqttIP)) {
+    logMQTTError();
     return;
   }
   Serial.println("GIZMO_MQTT_CONNECT_OK");
@@ -696,4 +703,34 @@ void statusReport() {
   mqtt.beginMessage(cfg.mqttTopicStats, (unsigned long)measureJson(posting));
   serializeJson(posting, mqtt);
   mqtt.endMessage();
+}
+
+void logMQTTError() {
+  Serial.printf("GIZMO_MQTT_FAIL ");
+  switch(mqtt.connectError()) {
+  case MQTT_CONNECTION_REFUSED:
+    Serial.println("MQTT_CONNECTION_REFUSED");
+    break;
+  case MQTT_CONNECTION_TIMEOUT:
+    Serial.println("MQTT_CONNECTION_TIMEOUT");
+    break;
+  case MQTT_SUCCESS:
+    Serial.println("MQTT_SUCCESS");
+    break;
+  case MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
+    Serial.println("MQTT_UNACCEPTABLE_PROTOCOL_VERSION");
+    break;
+  case MQTT_IDENTIFIER_REJECTED:
+    Serial.println("MQTT_IDENTIFIER_REJECTED");
+    break;
+  case MQTT_SERVER_UNAVAILABLE:
+    Serial.println("MQTT_SERVER_UNAVAILABLE");
+    break;
+  case MQTT_BAD_USER_NAME_OR_PASSWORD:
+    Serial.println("MQTT_BAD_USER_NAME_OR_PASSWORD");
+    break;
+  case MQTT_NOT_AUTHORIZED:
+    Serial.println("MQTT_NOT_AUTHORIZED");
+    break;
+  }
 }
