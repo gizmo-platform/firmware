@@ -537,6 +537,7 @@ void netStateMQTTConnect() {
   mqtt.onMessage(mqttParseMessage);
   mqtt.subscribe(cfg.mqttTopicControl);
   mqtt.subscribe(cfg.mqttTopicLocation);
+  Serial.println("GIZMO_MQTT_SUBSCRIBE_OK");
   nextControlPacketDueBy = millis() + 30000;
   netState = NET_RUNNING;
 }
@@ -566,10 +567,9 @@ void netStateRun() {
 }
 
 void mqttParseMessage(int messageSize) {
-  nextControlPacketDueBy = millis() + 5000;
-  status.SetControlConnected(true);
-
   if (mqtt.messageTopic() == cfg.mqttTopicControl) {
+    nextControlPacketDueBy = millis() + 5000;
+    status.SetControlConnected(true);
     mqttParseControl();
   } else if (mqtt.messageTopic() == cfg.mqttTopicLocation) {
     mqttParseLocation();
