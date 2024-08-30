@@ -185,7 +185,6 @@ void GizmoSetup() {
 void GizmoTick() {
   rp2040.wdt_reset();
   statusUpdate();
-  status.Update();
   digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
   if (cfg.loaded) {
@@ -198,6 +197,10 @@ void GizmoTick() {
   } else {
     loadConfigFromSerial();
   }
+}
+
+void GizmoTick1() {
+  status.Update();
 }
 
 // WireSetup binds the I2C bus for core 1 to be able to talk to the

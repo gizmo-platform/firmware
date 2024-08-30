@@ -24,3 +24,8 @@ void loop() {
 void setup1() {
   WireSetup(GIZMO_HW_I2C_SDA, GIZMO_HW_I2C_SCL);
 }
+
+void loop1() {
+  GizmoTick1();
+  delay(20);
+}

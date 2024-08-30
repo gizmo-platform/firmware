@@ -86,6 +86,7 @@ void ConfigureWiznetReset(byte);
 void ConfigureDefaultBroker(String);
 void GizmoSetup();
 void GizmoTick();
+void GizmoTick1();
 void SetWifiNet(String, String);
 void WireSetup(int, int);
 
