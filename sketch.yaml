@@ -8,4 +8,4 @@ profiles:
     libraries:
       - ArduinoJson (7.0.3)
       - ArduinoMqttClient (0.1.7)
-      - Adafruit NeoPixel (1.11.0)
+      - Adafruit NeoPixel (1.12.3)
