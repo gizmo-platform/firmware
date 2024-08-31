@@ -525,7 +525,7 @@ void netStateMQTTConnect() {
   }
 
   mqtt.setId(cfg.hostname);
-  mqtt.setConnectionTimeout(100);
+  mqtt.setConnectionTimeout(1000);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
   if (!mqtt.connect(mqttIP)) {
     logMQTTError();
@@ -535,8 +535,16 @@ void netStateMQTTConnect() {
 
   // Like and Subscribe
   mqtt.onMessage(mqttParseMessage);
-  mqtt.subscribe(cfg.mqttTopicControl);
-  mqtt.subscribe(cfg.mqttTopicLocation);
+  Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_CONTROL " + cfg.mqttTopicControl);
+  int ret = mqtt.subscribe(cfg.mqttTopicControl);
+  if (ret) {
+    Serial.printf("GIZMO_MQTT_SUBSCRIBE_CONTROL_FAIL %d\r\n", ret);
+  }
+  Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_LOCATION " + cfg.mqttTopicLocation);
+  ret = mqtt.subscribe(cfg.mqttTopicLocation);
+  if (ret) {
+    Serial.printf("GIZMO_MQTT_SUBSCRIBE_LOCATION_FAIL %d\r\n", ret);
+  }
   Serial.println("GIZMO_MQTT_SUBSCRIBE_OK");
   nextControlPacketDueBy = millis() + 30000;
   netState = NET_RUNNING;
@@ -577,7 +585,12 @@ void mqttParseMessage(int messageSize) {
 }
 
 void mqttParseControl() {
-  Serial.println("GIZMO_MQTT_MSG_CONTROL");
+  static int msgCounter = 0;
+  if (msgCounter>50) {
+    Serial.println("GIZMO_MQTT_MSG_CONTROL_X50");
+    msgCounter = 0;
+  };
+  msgCounter++;
   deserializeJson(cstateJSON, mqtt);
   cstate.Button0  = cstateJSON["ButtonX"];
   cstate.Button1  = cstateJSON["ButtonA"];
