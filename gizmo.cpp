@@ -154,15 +154,15 @@ void GizmoSetup() {
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
 
+  // Enable the hardware watchdog.  If we've gotten stuck for more
+  // than a few seconds something has broken - badly.
+  rp2040.wdt_begin(5000);
+
   // Administrative region
   byte d1 = (cfg.teamNumber / 1000) * 16;
   byte d2 = (cfg.teamNumber % 1000) / 100;
   byte d3 = (cfg.teamNumber % 1000) % 100 / 10 * 16;
   byte d4 = (cfg.teamNumber % 1000) % 100 % 10;
-
-  // Enable the hardware watchdog.  If we've gotten stuck for more
-  // than a few seconds something has broken - badly.
-  rp2040.wdt_begin(5000);
 
   byte mac[] = {0x02, 0x00, 0x00, byte(d1+d2), byte(d3+d4), 0x00};
   netLinkResetWiznet();
@@ -524,7 +524,6 @@ void netStateMQTTConnect() {
     return;
   }
 
-  mqtt.setId(cfg.hostname);
   mqtt.setConnectionTimeout(1000);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
   if (!mqtt.connect(mqttIP)) {
@@ -536,13 +535,13 @@ void netStateMQTTConnect() {
   // Like and Subscribe
   mqtt.onMessage(mqttParseMessage);
   Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_CONTROL " + cfg.mqttTopicControl);
-  int ret = mqtt.subscribe(cfg.mqttTopicControl);
-  if (ret) {
+  int ret = mqtt.subscribe(cfg.mqttTopicControl, 0);
+  if (ret != 1) {
     Serial.printf("GIZMO_MQTT_SUBSCRIBE_CONTROL_FAIL %d\r\n", ret);
   }
   Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_LOCATION " + cfg.mqttTopicLocation);
-  ret = mqtt.subscribe(cfg.mqttTopicLocation);
-  if (ret) {
+  ret = mqtt.subscribe(cfg.mqttTopicLocation, 0);
+  if (ret != 1) {
     Serial.printf("GIZMO_MQTT_SUBSCRIBE_LOCATION_FAIL %d\r\n", ret);
   }
   Serial.println("GIZMO_MQTT_SUBSCRIBE_OK");
