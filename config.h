@@ -5,12 +5,10 @@
 //ON_HEADER
 const byte GIZMO_HW_ENET_CS = 13;
 const byte GIZMO_HW_ENET_RST = 17;
-const byte GIZMO_HW_ENET_INT = -1;
 #else
 //BUILT_IN
 const byte GIZMO_HW_ENET_CS = 1;
 const byte GIZMO_HW_ENET_RST = 20;
-const byte GIZMO_HW_ENET_INT = -1;
 #endif
 //
 
@@ -19,6 +17,7 @@ const byte GIZMO_HW_STATUS_NEOPIXELS_PIN = 15;
 const byte GIZMO_HW_STATUS_NEOPIXELS_CNT = 4;
 const byte GIZMO_HW_USER_RESET = 22;
 const byte GIZMO_HW_ADC_BOARD_VOLTAGE = 28;
+const byte GIZMO_HW_ENET_INT = -1;
 
 #ifdef GIZMO_VERSION_R3B
 #define GIZMO_HW_VERSION "GIZMO_V00_R3B"
@@ -50,6 +49,20 @@ const byte GIZMO_HW_I2C_SCL = 19;
 
 #elifdef GIZMO_VERSION_R6E
 #define GIZMO_HW_VERSION "GIZMO_V00_R6E"
+const float GIZMO_HW_ADC_BOARD_VOLTAGE_M = 0.011499;
+const float GIZMO_HW_ADC_BOARD_VOLTAGE_B = 0.2722;
+const byte GIZMO_HW_PWR_BOARD = 4;
+const byte GIZMO_HW_PWR_PICO = 5;
+const byte GIZMO_HW_PWR_GPIO = 6;
+const byte GIZMO_HW_PWR_SERVO = 7;
+const byte GIZMO_HW_PWR_MAIN_A = 8;
+const byte GIZMO_HW_PWR_MAIN_B = 9;
+const byte GIZMO_HW_PWR_PIXELS = 10;
+const byte GIZMO_HW_I2C_SDA = 26;
+const byte GIZMO_HW_I2C_SCL = 27;
+
+#elifdef GIZMO_VERSION_1_0_R00
+#define GIZMO_HW_VERSION "GIZMO_V1_0_R00"
 const float GIZMO_HW_ADC_BOARD_VOLTAGE_M = 0.011499;
 const float GIZMO_HW_ADC_BOARD_VOLTAGE_B = 0.2722;
 const byte GIZMO_HW_PWR_BOARD = 4;

@@ -10,24 +10,55 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rev:
+          - R3B
+          - R4B
+          - R6E
+          - V1_0_R00
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: 'true'
           fetch-depth: 0
+          path: 'firmware'
 
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
       - name: Build
-        run: bash -x .ci.sh
+        run: |
+          mkdir artifacts/
+          cd firmware/
+          arduino-cli compile --profile gizmo --build-property "build.extra_flags=-D GIZMO_VERSION_${{ matrix.rev }}" --output-dir out .
+          cp -v out/firmware.ino.uf2 "../artifacts/gss-${{ matrix.rev}}-${{ github.ref_name }}.uf2"
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.rev }}
+          path: "artifacts/gss-${{ matrix.rev}}-${{ github.ref_name }}.uf2"
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: look
+        run: ls -alh
+          
       - name: Upload
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/gss_*.uf2
+          files: gss*.uf2
           generate_release_notes: true
           fail_on_unmatched_files: true
