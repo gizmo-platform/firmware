@@ -74,6 +74,7 @@ unsigned long nextStatusReportAt;
 bool loadConfig(String);
 void loadConfigFromSerial();
 void checkIfShouldConfig();
+void zeroizeCState();
 
 bool netLinkOk();
 void netLinkResetWiznet();
@@ -121,16 +122,34 @@ void ConfigureWiznetReset(byte rst) {
   pinWiznetReset = rst;
 }
 
-void GizmoSetup() {
-  // Ensure that the cstate values for axis data start at a reasonable
-  // zero point.  This prevents machines from running off into the
-  // wild blue yonder.
+
+void zeroizeCState() {
+  cstate.Button0 = false;
+  cstate.Button1 = false;
+  cstate.Button2 = false;
+  cstate.Button3 = false;
+  cstate.Button4 = false;
+  cstate.Button5 = false;
+  cstate.Button6 = false;
+  cstate.Button7 = false;
+  cstate.Button8 = false;
+  cstate.Button9 = false;
+  cstate.Button10 = false;
+  cstate.Button11 = false;
+
   cstate.Axis0 = 127;
   cstate.Axis1 = 127;
   cstate.Axis2 = 127;
   cstate.Axis3 = 127;
   cstate.Axis4 = 127;
   cstate.Axis5 = 127;
+}
+
+void GizmoSetup() {
+  // Ensure that the cstate values for axis data start at a reasonable
+  // zero point.  This prevents machines from running off into the
+  // wild blue yonder.
+  zeroizeCState();
 
   pinMode(pinStatusPwrBoard, INPUT);
   pinMode(pinStatusPwrPico, INPUT);
@@ -579,6 +598,7 @@ void netStateRun() {
     netState = NET_CONNECT_MQTT;
     status.SetControlConnected(false);
     Serial.printf("GIZMO_MQTT_CTRL_TIMEOUT %d\r\n", (millis() - nextControlPacketDueBy));
+    zeroizeCState();
     return;
   }
 
