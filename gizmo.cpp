@@ -14,6 +14,18 @@
 Config cfg;
 CfgState cfgState = CFG_INIT;
 
+// This controls how long after the last control frame was receieved
+// we should consider the control channel to have timed out.  This
+// value is a balance between making sure that robots don't run away,
+// but also making sure that there's enough slop in the system that a
+// packet that is delayed doesn't cause a reset.  This value is in
+// milliseconds, and is set as the time that would have to pass to
+// miss 5 packets at 50Hz with a little slop.
+//
+// This value can be adjusted dynamically depending on where the
+// broker is determined to be.
+int controlTimeout = 1000;
+
 // Should really be const, but we don't know these until after
 // initialization.
 byte pinStatusPwrSupply;
@@ -490,6 +502,10 @@ void netStateFMSDiscover() {
     cfg.mqttBroker = mqttIP.toString();
     netState = NET_CONNECT_MQTT;
     Serial.println("GIZMO_FMS_DISCOVERED_COMP " + mqttIP.toString());
+    // We tighten this up to 500ms which provides really stable
+    // operation on the FMS, while still handling the occasional lags
+    // during radio boot up.
+    controlTimeout = 500;
     return;
   }
 
@@ -497,6 +513,10 @@ void netStateFMSDiscover() {
     cfg.mqttBroker = mqttIP.toString();
     netState = NET_CONNECT_MQTT;
     Serial.println("GIZMO_FMS_DISCOVERED_DS " + mqttIP.toString());
+    // We can massively tighten up the timeout if we're on the
+    // driver's station since that's a point to point link with known
+    // latency characteristics.
+    controlTimeout = 100;
     return;
   }
 
@@ -519,6 +539,7 @@ void netStateFMSDiscover() {
 }
 
 void netStateMQTTConnect() {
+  Serial.printf("GIZMO_MQTT_CTRL_LIMIT %d\r\n", controlTimeout);
   Serial.println("GIZMO_MQTT_CONNECT_START");
   if (!netLinkOk()) {
     return;
@@ -557,7 +578,7 @@ void netStateRun() {
   if (nextControlPacketDueBy < millis()) {
     netState = NET_CONNECT_MQTT;
     status.SetControlConnected(false);
-    Serial.println("GIZMO_MQTT_CTRL_TIMEOUT");
+    Serial.printf("GIZMO_MQTT_CTRL_TIMEOUT %d\r\n", (millis() - nextControlPacketDueBy));
     return;
   }
 
@@ -575,7 +596,7 @@ void netStateRun() {
 
 void mqttParseMessage(int messageSize) {
   if (mqtt.messageTopic() == cfg.mqttTopicControl) {
-    nextControlPacketDueBy = millis() + 5000;
+    nextControlPacketDueBy = millis() + controlTimeout;
     status.SetControlConnected(true);
     mqttParseControl();
   } else if (mqtt.messageTopic() == cfg.mqttTopicLocation) {
