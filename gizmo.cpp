@@ -565,6 +565,8 @@ void netStateMQTTConnect() {
   }
 
   mqtt.setConnectionTimeout(1000);
+  mqtt.setCleanSession(true);
+  mqtt.setId(cfg.hostname);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
   if (!mqtt.connect(mqttIP)) {
     logMQTTError();
