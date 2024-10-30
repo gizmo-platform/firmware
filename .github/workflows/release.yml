@@ -31,7 +31,7 @@ jobs:
         uses: arduino/setup-arduino-cli@v1
 
       - name: Set version
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" | sed s/v// >> $GITHUB_ENV
 
       - name: Build
         run: |
