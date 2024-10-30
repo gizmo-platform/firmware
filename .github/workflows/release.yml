@@ -30,11 +30,14 @@ jobs:
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
+      - name: Set version
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
       - name: Build
         run: |
           mkdir artifacts/
           cd firmware/
-          arduino-cli compile --profile gizmo --build-property "build.extra_flags=-D GIZMO_VERSION_${{ matrix.rev }}" --output-dir out .
+          arduino-cli compile --profile gizmo --build-property "build.extra_flags=-D GIZMO_VERSION_${{ matrix.rev }} -DGIZMO_FW_VERSION=\"${{ env.RELEASE_VERSION }}\"" --output-dir out .
           cp -v out/firmware.ino.uf2 "../artifacts/gss-${{ matrix.rev}}-${{ github.ref_name }}.uf2"
 
       - name: Upload Artifacts
