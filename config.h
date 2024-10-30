@@ -12,6 +12,10 @@ const byte GIZMO_HW_ENET_RST = 20;
 #endif
 //
 
+#ifndef GIZMO_FW_VERSION
+#define GIZMO_FW_VERSION "UNKNOWN"
+#endif
+
 // Pin assignments that are hardware specific.
 const byte GIZMO_HW_STATUS_NEOPIXELS_PIN = 15;
 const byte GIZMO_HW_STATUS_NEOPIXELS_CNT = 4;

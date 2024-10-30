@@ -69,6 +69,7 @@ unsigned long nextControlPacketDueBy;
 unsigned long controlFrameAge;
 unsigned long netStateConnectTimeout;
 unsigned long nextStatusReportAt;
+unsigned long nextMetaReportAt;
 
 // function declarations for "private" functions.
 bool loadConfig(String);
@@ -95,8 +96,11 @@ void wireRespond();
 
 void statusUpdate();
 void statusReport();
+void metaReport();
 
 void logMQTTError();
+
+const char* generateUUID();
 
 void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte servo, byte mainA, byte mainB, byte pixels) {
   pinStatusPwrSupply = supply;
@@ -151,6 +155,10 @@ void GizmoSetup() {
   // wild blue yonder.
   zeroizeCState();
 
+  // The efficacy of this is highly debateable, but it is the
+  // recommended way to initialize the random number generator.
+  randomSeed(analogRead(2));
+
   pinMode(pinStatusPwrBoard, INPUT);
   pinMode(pinStatusPwrPico, INPUT);
   pinMode(pinStatusPwrGPIO, INPUT);
@@ -165,9 +173,16 @@ void GizmoSetup() {
   digitalWrite(pinWiznetReset, HIGH);
   Serial.begin(9600);
 
+  // This slows down the boot long enough that the serial load
+  // messages can be printed.  Its a tradeoff between boot speed and
+  // debugability, and for the moment we're favoring debugability.
+  delay(3000);
+
   loadConfig("/gsscfg.json");
   Serial.print("GIZMO_HARDWARE ");
   Serial.println(GIZMO_HW_VERSION);
+  Serial.print("GIZMO_FIRMWARE ");
+  Serial.println(GIZMO_FW_VERSION);
 
   // We set SPI here for the wiznet breakout
   SPI.setRX(0);
@@ -227,6 +242,10 @@ void GizmoTick() {
     if (mqtt.connected() && nextStatusReportAt < millis()) {
       statusReport();
       nextStatusReportAt = millis() + 2000;
+    }
+    if (mqtt.connected() && nextMetaReportAt < millis()) {
+      metaReport();
+      nextMetaReportAt = millis() + 10000;
     }
   } else {
     loadConfigFromSerial();
@@ -292,6 +311,7 @@ bool loadConfig(String path) {
   cfg.mqttTopicControl = String("robot/") + cfg.teamNumber + String("/gamepad");
   cfg.mqttTopicLocation = String("robot/") + cfg.teamNumber + String("/location");
   cfg.mqttTopicStats = String("robot/") + cfg.teamNumber + String("/stats");
+  cfg.mqttTopicMeta = String("robot/") + cfg.teamNumber + String("/gizmo-meta");
 
   status.SetConfigStatus(CFG_OK);
   cfg.loaded = true;
@@ -524,7 +544,7 @@ void netStateFMSDiscover() {
     // We tighten this up to 500ms which provides really stable
     // operation on the FMS, while still handling the occasional lags
     // during radio boot up.
-    controlTimeout = 500;
+    controlTimeout = 1000;
     return;
   }
 
@@ -535,7 +555,7 @@ void netStateFMSDiscover() {
     // We can massively tighten up the timeout if we're on the
     // driver's station since that's a point to point link with known
     // latency characteristics.
-    controlTimeout = 100;
+    controlTimeout = 500;
     return;
   }
 
@@ -564,9 +584,16 @@ void netStateMQTTConnect() {
     return;
   }
 
+  // This needs randomness because reconnects are weirdly buggy with
+  // this MQTT library.  The entire library should just be replaced
+  // when time permits.
+  String mqttID = cfg.hostname;
+  mqttID.concat("-");
+  mqttID.concat(generateUUID());
+
   mqtt.setConnectionTimeout(1000);
   mqtt.setCleanSession(true);
-  mqtt.setId(cfg.hostname);
+  mqtt.setId(mqttID);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
   if (!mqtt.connect(mqttIP)) {
     logMQTTError();
@@ -760,6 +787,16 @@ void statusReport() {
   mqtt.endMessage();
 }
 
+void metaReport() {
+  JsonDocument posting;
+  posting["HardwareVersion"] = GIZMO_HW_VERSION;
+  posting["FirmwareVersion"] = GIZMO_FW_VERSION;
+
+  mqtt.beginMessage(cfg.mqttTopicMeta, (unsigned long)measureJson(posting));
+  serializeJson(posting, mqtt);
+  mqtt.endMessage();
+}
+
 void logMQTTError() {
   Serial.printf("GIZMO_MQTT_FAIL ");
   switch(mqtt.connectError()) {
@@ -788,4 +825,15 @@ void logMQTTError() {
     Serial.println("MQTT_NOT_AUTHORIZED");
     break;
   }
+}
+
+const char* generateUUID() {
+ const char possible[] = "abcdefghijklmnopqrstuvwxyz";
+  static char uid[7];
+  for(int p = 0, i = 0; i < 6; i++){
+    int r = random(0, strlen(possible));
+    uid[p++] = possible[r];
+  }
+  uid[7] = '\0';
+  return uid;
 }

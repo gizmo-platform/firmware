@@ -12,6 +12,7 @@ struct Config {
   String mqttTopicControl;
   String mqttTopicLocation;
   String mqttTopicStats;
+  String mqttTopicMeta;
   String netSSID;
   String netPSK;
 };
@@ -89,5 +90,4 @@ void GizmoTick();
 void GizmoTick1();
 void SetWifiNet(String, String);
 void WireSetup(int, int);
-
 #endif
