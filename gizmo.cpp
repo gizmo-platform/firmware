@@ -155,10 +155,6 @@ void GizmoSetup() {
   // wild blue yonder.
   zeroizeCState();
 
-  // The efficacy of this is highly debateable, but it is the
-  // recommended way to initialize the random number generator.
-  randomSeed(analogRead(2));
-
   pinMode(pinStatusPwrBoard, INPUT);
   pinMode(pinStatusPwrPico, INPUT);
   pinMode(pinStatusPwrGPIO, INPUT);
@@ -830,7 +826,8 @@ void logMQTTError() {
 }
 
 const char* generateUUID() {
- const char possible[] = "abcdefghijklmnopqrstuvwxyz";
+  randomSeed(millis());
+  const char possible[] = "abcdefghijklmnopqrstuvwxyz";
   static char uid[7];
   for(int p = 0, i = 0; i < 6; i++){
     int r = random(0, strlen(possible));
