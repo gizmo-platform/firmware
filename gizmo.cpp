@@ -592,7 +592,8 @@ void netStateMQTTConnect() {
   mqttID.concat("-");
   mqttID.concat(generateUUID());
 
-  mqtt.setConnectionTimeout(5000);
+  mqtt.setConnectionTimeout(2000);
+  mqtt.setKeepAliveInterval(250);
   mqtt.setCleanSession(true);
   mqtt.setId(mqttID);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
