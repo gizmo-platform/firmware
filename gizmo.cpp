@@ -100,8 +100,6 @@ void metaReport();
 
 void logMQTTError();
 
-const char* generateUUID();
-
 void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte servo, byte mainA, byte mainB, byte pixels) {
   pinStatusPwrSupply = supply;
   pinStatusPwrBoard = board;
@@ -581,17 +579,6 @@ void netStateMQTTConnect() {
     return;
   }
 
-  // This needs randomness because reconnects are weirdly buggy with
-  // this MQTT library.  The entire library should just be replaced
-  // when time permits.
-  String mqttID = cfg.hostname;
-  mqttID.concat("-");
-  mqttID.concat(generateUUID());
-
-  mqtt.setConnectionTimeout(2000);
-  mqtt.setKeepAliveInterval(250);
-  mqtt.setCleanSession(true);
-  mqtt.setId(mqttID);
   Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
   if (!mqtt.connect(mqttIP)) {
     logMQTTError();
@@ -825,16 +812,4 @@ void logMQTTError() {
     Serial.println("MQTT_NOT_AUTHORIZED");
     break;
   }
-}
-
-const char* generateUUID() {
-  randomSeed(millis());
-  const char possible[] = "abcdefghijklmnopqrstuvwxyz";
-  static char uid[7];
-  for(int p = 0, i = 0; i < 6; i++){
-    int r = random(0, strlen(possible));
-    uid[p++] = possible[r];
-  }
-  uid[7] = '\0';
-  return uid;
 }
