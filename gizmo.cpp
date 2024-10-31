@@ -254,6 +254,7 @@ void GizmoTick() {
 
 void GizmoTick1() {
   status.Update();
+  delay(5);
 }
 
 // WireSetup binds the I2C bus for core 1 to be able to talk to the
