@@ -613,6 +613,8 @@ void netStateMQTTConnect() {
   }
   Serial.println("GIZMO_MQTT_SUBSCRIBE_OK");
   nextControlPacketDueBy = millis() + 30000;
+  nextStatusReportAt = millis() + 2000;
+  nextMetaReportAt = millis() + 1500;
   netState = NET_RUNNING;
 }
 
