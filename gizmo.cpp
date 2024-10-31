@@ -239,11 +239,11 @@ void GizmoTick() {
   if (cfg.loaded) {
     checkIfShouldConfig();
     netStateMachine();
-    if (mqtt.connected() && nextStatusReportAt < millis()) {
+    if (mqtt.connected() && (nextStatusReportAt < millis()) && (nextControlPacketDueBy > millis())) {
       statusReport();
       nextStatusReportAt = millis() + 2000;
     }
-    if (mqtt.connected() && nextMetaReportAt < millis()) {
+    if (mqtt.connected() && (nextMetaReportAt < millis()) && (nextControlPacketDueBy > millis())) {
       metaReport();
       nextMetaReportAt = millis() + 10000;
     }
