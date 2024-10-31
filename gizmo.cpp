@@ -244,6 +244,11 @@ void GizmoTick() {
   } else {
     loadConfigFromSerial();
   }
+
+  // This allows yielded threads to wake and execute.  It was
+  // recommended by the MQTT library vendor for stability, though the
+  // vendor did not articulate fully how it improved the stability.
+  delay(10);
 }
 
 void GizmoTick1() {
