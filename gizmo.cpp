@@ -294,7 +294,7 @@ bool loadConfig(String path) {
   }
 
   cfg.teamNumber = cfgDoc["Team"] | -1;
-  cfg.mqttBroker = cfgDoc["ServerIP"] | "gizmo-ds";
+  cfg.mqttBroker = cfgDoc["ServerIP"] | "ds.gizmo";
   cfg.netSSID = cfgDoc["NetSSID"] | "";
   cfg.netPSK = cfgDoc["NetPSK"] | "";
 
@@ -533,21 +533,6 @@ void netStateFMSDiscover() {
   // several edge cases with misbehaving DNS servers when using
   // external network controllers.
 
-  if (!hostByName("nxdomain.gizmo", mqttIP, 2000) && hostByName("fms.gizmo", mqttIP, 2000)) {
-    // This gets checked before we check any baked in values because
-    // this is how we know if we're connected to a competition mode
-    // field and we need to bail right here with a connection to that
-    // endpoint.
-    cfg.mqttBroker = mqttIP.toString();
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_COMP " + mqttIP.toString());
-    // We tighten this up to 500ms which provides really stable
-    // operation on the FMS, while still handling the occasional lags
-    // during radio boot up.
-    controlTimeout = 1000;
-    return;
-  }
-
   if (!hostByName("nxdomain.gizmo", mqttIP, 2000) && hostByName("ds.gizmo", mqttIP, 2000)) {
     cfg.mqttBroker = mqttIP.toString();
     netState = NET_CONNECT_MQTT;
@@ -556,23 +541,6 @@ void netStateFMSDiscover() {
     // driver's station since that's a point to point link with known
     // latency characteristics.
     controlTimeout = 500;
-    return;
-  }
-
-  if (hostByName(cfg.mqttBroker.c_str(), mqttIP, 2000)) {
-    cfg.mqttBroker = mqttIP.toString();
-    // We can jump directly to connect since this is a terminal
-    // address.
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_HOSTNAME " + mqttIP.toString());
-    return;
-  }
-
-  if (mqttIP.fromString(cfg.mqttBroker)) {
-    // The broker address was an IP and so we can just connect
-    // directly.
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_IP");
     return;
   }
 }
