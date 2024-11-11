@@ -409,9 +409,9 @@ bool netLinkOk() {
 }
 
 void netLinkResetWiznet() {
-      digitalWrite(pinWiznetReset, LOW);
-      delay(10);
-      digitalWrite(pinWiznetReset, HIGH);
+  digitalWrite(pinWiznetReset, LOW);
+  delay(10);
+  digitalWrite(pinWiznetReset, HIGH);
 }
 
 // netStateMachine handles all the various state transitions of the
@@ -668,7 +668,7 @@ void mqttParseLocation() {
 // Wire1 object.  Its ugly but it means that the rest of the code can
 // be nicely subdivided into member functions.
 void wireRespond() {
-    byte toSend[18] = {
+  byte toSend[18] = {
     cstate.Axis0,
     cstate.Axis1,
     cstate.Axis2,
