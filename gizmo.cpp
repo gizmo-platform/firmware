@@ -239,7 +239,7 @@ void GizmoTick() {
     }
     if (mqtt.connected() && (nextMetaReportAt < millis()) && (nextControlPacketDueBy > millis())) {
       metaReport();
-      nextMetaReportAt = millis() + 10000;
+      nextMetaReportAt = millis() + 3000;
     }
   } else {
     loadConfigFromSerial();
