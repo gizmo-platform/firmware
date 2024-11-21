@@ -4,8 +4,8 @@
 #include "Arduino.h"
 #include "indicators.h"
 #include <ArduinoJson.h>
-#include <ArduinoMqttClient.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <Wire.h>
 #include <SPI.h>
 #include "LittleFS.h"
@@ -49,9 +49,9 @@ byte pinWiznetReset;
 
 StatusIndicators status(15, 4);
 Wiznet5500lwIP eth(GIZMO_HW_ENET_CS, SPI, GIZMO_HW_ENET_INT);
-WiFiClient network;
-MqttClient mqtt(network);
-IPAddress mqttIP;
+WiFiUDP udp;
+IPAddress dsIP;
+IPAddress gizmoIP;
 
 bool enetAvailable = false;
 
@@ -84,21 +84,18 @@ void netStateLinkSearch();
 void netStateWifiConnect();
 void netStateConnectWaitWifi();
 void netStateConnectWaitEnet();
-void netStateFMSDiscover();
-void netStateMQTTConnect();
+void netStateBind();
 void netStateRun();
 
-void mqttParseMessage(int);
-void mqttParseLocation();
-void mqttParseControl();
+void netHandlePacket();
+void netParseLocation();
+void netParseControl();
 
 void wireRespond();
 
 void statusUpdate();
 void statusReport();
 void metaReport();
-
-void logMQTTError();
 
 void ConfigureStatusIO(byte supply, byte board, byte pico, byte gpio, byte servo, byte mainA, byte mainB, byte pixels) {
   pinStatusPwrSupply = supply;
@@ -193,6 +190,7 @@ void GizmoSetup() {
   WiFi.setHostname(cfg.hostname);
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
+  WiFi.config(gizmoIP);
 
   // Enable the hardware watchdog.  If we've gotten stuck for more
   // than a few seconds something has broken - badly.
@@ -233,11 +231,11 @@ void GizmoTick() {
   if (cfg.loaded) {
     checkIfShouldConfig();
     netStateMachine();
-    if (mqtt.connected() && (nextStatusReportAt < millis()) && (nextControlPacketDueBy > millis())) {
+    if (nextStatusReportAt < millis()) {
       statusReport();
       nextStatusReportAt = millis() + 2000;
     }
-    if (mqtt.connected() && (nextMetaReportAt < millis()) && (nextControlPacketDueBy > millis())) {
+    if (nextMetaReportAt < millis()) {
       metaReport();
       nextMetaReportAt = millis() + 3000;
     }
@@ -245,10 +243,9 @@ void GizmoTick() {
     loadConfigFromSerial();
   }
 
-  // This allows yielded threads to wake and execute.  It was
-  // recommended by the MQTT library vendor for stability, though the
-  // vendor did not articulate fully how it improved the stability.
-  delay(10);
+  // This guarantees that interrupts are processed, since any time
+  // we're in the network stack interrupts are disabled.
+  delay(2);
 }
 
 void GizmoTick1() {
@@ -294,7 +291,7 @@ bool loadConfig(String path) {
   }
 
   cfg.teamNumber = cfgDoc["Team"] | -1;
-  cfg.mqttBroker = cfgDoc["ServerIP"] | "ds.gizmo";
+  cfg.ds = cfgDoc["ServerIP"] | "ds.gizmo";
   cfg.netSSID = cfgDoc["NetSSID"] | "";
   cfg.netPSK = cfgDoc["NetPSK"] | "";
 
@@ -308,21 +305,21 @@ bool loadConfig(String path) {
     return false;
   }
 
-  cfg.mqttTopicControl = String("robot/") + cfg.teamNumber + String("/gamepad");
-  cfg.mqttTopicLocation = String("robot/") + cfg.teamNumber + String("/location");
-  cfg.mqttTopicStats = String("robot/") + cfg.teamNumber + String("/stats");
-  cfg.mqttTopicMeta = String("robot/") + cfg.teamNumber + String("/gizmo-meta");
-
   status.SetConfigStatus(CFG_OK);
   cfg.loaded = true;
   Serial.println("GIZMO_LOAD_CFG_OK");
   f.close();
   LittleFS.end();
 
+  // This works because we can assert that the driver's station is at
+  // a fixed address.
+  dsIP   = IPAddress(10, byte(cfg.teamNumber/100), byte(cfg.teamNumber%100), 2);
+  gizmoIP = IPAddress(10, byte(cfg.teamNumber/100), byte(cfg.teamNumber%100), 3);
+
   Serial.print("GIZMO_CFG_TEAM ");
   Serial.print(cfg.teamNumber);
   Serial.println();
-  Serial.println("GIZMO_CFG_SERVER " + cfg.mqttBroker);
+  Serial.println("GIZMO_CFG_SERVER " + cfg.ds);
   Serial.printf("GIZMO_CFG_HOSTNAME %s\r\n", cfg.hostname);
   return true;
 }
@@ -431,11 +428,8 @@ void netStateMachine() {
   case NET_CONNECT_WAIT_ENET:
     netStateConnectWaitEnet();
     break;
-  case NET_FMS_DISCOVER:
-    netStateFMSDiscover();
-    break;
-  case NET_CONNECT_MQTT:
-    netStateMQTTConnect();
+  case NET_BIND:
+    netStateBind();
     break;
   case NET_RUNNING:
     netStateRun();
@@ -479,17 +473,17 @@ void netStateConnectWaitEnet() {
     }
   }
   status.SetNetConnected(true);
-  Serial.println("GIZMO_NET_IP " + eth.localIP().toString());
-  eth.setDNS(eth.gatewayIP());
-  Serial.println("GIZMO_NET_DNS " + eth.dnsIP().toString());
-  netState = NET_FMS_DISCOVER;
+  netState = NET_BIND;
   netLink = NET_WIRED;
+  nextControlPacketDueBy = millis() + 2000;
+  Serial.println("GIZMO_NET_IP " + eth.localIP().toString());
   Serial.println("GIZMO_NET_WIRED_RUN");
 }
 
 void netStateWifiConnect() {
   Serial.println("GIZMO_NET_WIFI_START");
   WiFi.mode(WIFI_STA);
+  WiFi.config(gizmoIP);
   WiFi.beginNoBlock(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
   netState = NET_CONNECT_WAIT_WIFI;
@@ -513,69 +507,24 @@ void netStateConnectWaitWifi() {
   // flip the status forward.
   boardState.WifiReconnects++;
   status.SetNetConnected(true);
-  WiFi.setDNS(WiFi.dnsIP());
-
-  Serial.println("GIZMO_NET_IP " + WiFi.localIP().toString());
-  Serial.println("GIZMO_NET_DNS " + WiFi.dnsIP().toString());
-  netState = NET_FMS_DISCOVER;
+  netState = NET_BIND;
   netLink = NET_WIRELESS;
+  nextControlPacketDueBy = millis() + 2000;
+  Serial.println("GIZMO_NET_IP " + WiFi.localIP().toString());
   Serial.println("GIZMO_NET_WIFI_RUN");
 }
 
-void netStateFMSDiscover() {
-  Serial.println("GIZMO_FMS_DISCOVER_START");
-  if (!netLinkOk()) {
-    return;
+void netStateBind() {
+  if (!udp.begin(1729)) {
+    Serial.println("GIZMO_NET_BIND_FAIL");
+    delay(100);
   }
+  Serial.println("GIZMO_NET_BIND_OK");
+  netState = NET_RUNNING;
 
-  // The DNS checks for our "special" names validate that nothing
-  // returns for a name we can be certain doesn't exist.  This catches
-  // several edge cases with misbehaving DNS servers when using
-  // external network controllers.
-
-  if (!hostByName("nxdomain.gizmo", mqttIP, 2000) && hostByName("ds.gizmo", mqttIP, 2000)) {
-    cfg.mqttBroker = mqttIP.toString();
-    netState = NET_CONNECT_MQTT;
-    Serial.println("GIZMO_FMS_DISCOVERED_DS " + mqttIP.toString());
-    // We can massively tighten up the timeout if we're on the
-    // driver's station since that's a point to point link with known
-    // latency characteristics.
-    controlTimeout = 500;
-    return;
-  }
-}
-
-void netStateMQTTConnect() {
-  Serial.printf("GIZMO_MQTT_CTRL_LIMIT %d\r\n", controlTimeout);
-  Serial.println("GIZMO_MQTT_CONNECT_START");
-  if (!netLinkOk()) {
-    return;
-  }
-
-  Serial.println("GIZMO_MQTT_TARGET " + cfg.mqttBroker);
-  if (!mqtt.connect(mqttIP)) {
-    logMQTTError();
-    return;
-  }
-  Serial.println("GIZMO_MQTT_CONNECT_OK");
-
-  // Like and Subscribe
-  mqtt.onMessage(mqttParseMessage);
-  Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_CONTROL " + cfg.mqttTopicControl);
-  int ret = mqtt.subscribe(cfg.mqttTopicControl, 0);
-  if (ret != 1) {
-    Serial.printf("GIZMO_MQTT_SUBSCRIBE_CONTROL_FAIL %d\r\n", ret);
-  }
-  Serial.println("GIZMO_MQTT_SUBSCRIBE_TOPIC_LOCATION " + cfg.mqttTopicLocation);
-  ret = mqtt.subscribe(cfg.mqttTopicLocation, 0);
-  if (ret != 1) {
-    Serial.printf("GIZMO_MQTT_SUBSCRIBE_LOCATION_FAIL %d\r\n", ret);
-  }
-  Serial.println("GIZMO_MQTT_SUBSCRIBE_OK");
   nextControlPacketDueBy = millis() + 30000;
   nextStatusReportAt = millis() + 2000;
   nextMetaReportAt = millis() + 1500;
-  netState = NET_RUNNING;
 }
 
 void netStateRun() {
@@ -583,44 +532,50 @@ void netStateRun() {
     return;
   }
 
+  udp.parsePacket();
+  if (udp.available()) {
+    netHandlePacket();
+  }
+
   if (nextControlPacketDueBy < millis()) {
-    netState = NET_CONNECT_MQTT;
     status.SetControlConnected(false);
-    Serial.printf("GIZMO_MQTT_CTRL_TIMEOUT %d\r\n", (millis() - nextControlPacketDueBy));
+    Serial.printf("GIZMO_CTRL_TIMEOUT %d\r\n", (millis() - nextControlPacketDueBy));
     zeroizeCState();
     return;
   }
-
-  // If we made it this far then the network is still running, so do
-  // the maintenance tasks for the network.
-  mqtt.poll();
 
   // The interrupt needs us to be doing nothing so it can preempt,
   // this is only necessary when running the polling mode ethernet
   // lwIP interface.
   if (netLink == NET_WIRED) {
-    delay(10);
+    delay(1);
   }
 }
 
-void mqttParseMessage(int messageSize) {
-  if (mqtt.messageTopic() == cfg.mqttTopicControl) {
-    nextControlPacketDueBy = millis() + controlTimeout;
-    status.SetControlConnected(true);
-    mqttParseControl();
-  } else if (mqtt.messageTopic() == cfg.mqttTopicLocation) {
-    mqttParseLocation();
+void netHandlePacket() {
+  char msgType = udp.read();
+  switch(msgType) {
+  case 'C':
+    netParseControl();
+    break;
+  case 'L':
+    netParseLocation();
+    break;
   }
 }
 
-void mqttParseControl() {
+void netParseControl() {
   static int msgCounter = 0;
-  if (msgCounter>50) {
-    Serial.println("GIZMO_MQTT_MSG_CONTROL_X50");
+  if (msgCounter>40) {
+    Serial.println("GIZMO_MSG_CONTROL_X40");
     msgCounter = 0;
   };
   msgCounter++;
-  deserializeJson(cstateJSON, mqtt);
+  DeserializationError err = deserializeJson(cstateJSON, udp);
+  if (err) {
+    Serial.print("GIZMO_MSG_CONTROL_PARSEFAIL ");
+    Serial.println(err.c_str());
+  }
   cstate.Button0  = cstateJSON["ButtonX"];
   cstate.Button1  = cstateJSON["ButtonA"];
   cstate.Button2  = cstateJSON["ButtonB"];
@@ -642,24 +597,41 @@ void mqttParseControl() {
   cstate.Axis5 = cstateJSON["AxisDY"];
 
   controlFrameAge = millis();
+  nextControlPacketDueBy = millis() + controlTimeout;
+  status.SetControlConnected(true);
   boardState.FramesReceived++;
 }
 
-void mqttParseLocation() {
-  Serial.println("GIZMO_MQTT_MSG_LOCATION");
-  deserializeJson(fstateJSON, mqtt);
-  status.SetFieldNumber(fstateJSON["Field"]);
+void netParseLocation() {
+  Serial.println("GIZMO_MSG_LOCATION");
+  DeserializationError err = deserializeJson(fstateJSON, udp);
+  if (err) {
+    Serial.print("GIZMO_MSG_LOCATION_PARSEFAIL ");
+    Serial.println(err.c_str());
+  }
+  const char* quad = fstateJSON["Quadrant"];
+  const int field = fstateJSON["Field"];
 
-  if (fstateJSON["Quadrant"] == "RED") {
+  status.SetFieldNumber(field);
+  switch(quad[0]) {
+  case 'R':
     status.SetFieldQuadrant(GIZMO_QUAD_RED);
-  } else if (fstateJSON["Quadrant"] == "BLUE") {
+    break;
+  case 'B':
     status.SetFieldQuadrant(GIZMO_QUAD_BLUE);
-  } else if (fstateJSON["Quadrant"] == "GREEN") {
+    break;
+  case 'G':
     status.SetFieldQuadrant(GIZMO_QUAD_GREEN);
-  } else if (fstateJSON["Quadrant"] == "YELLOW") {
+    break;
+  case 'Y':
     status.SetFieldQuadrant(GIZMO_QUAD_YELLOW);
-  } else if (fstateJSON["Quadrant"] == "PRACTICE") {
+    break;
+  case 'P':
     status.SetFieldQuadrant(GIZMO_QUAD_PRACTICE);
+    break;
+  default:
+    Serial.println("GIZMO_BAD_QUADRANT ");
+    Serial.print(quad);
   }
   return;
 }
@@ -741,10 +713,11 @@ void statusReport() {
   posting["PwrPixels"] = boardState.PwrPixels;
   posting["WatchdogOK"] = boardState.WatchdogOK;
 
-  // Push to the FMS
-  mqtt.beginMessage(cfg.mqttTopicStats, (unsigned long)measureJson(posting));
-  serializeJson(posting, mqtt);
-  mqtt.endMessage();
+
+  udp.beginPacket(dsIP, 1729);
+  udp.write('S');
+  serializeJson(posting, udp);
+  udp.endPacket();
 }
 
 void metaReport() {
@@ -752,37 +725,8 @@ void metaReport() {
   posting["HardwareVersion"] = GIZMO_HW_VERSION;
   posting["FirmwareVersion"] = GIZMO_FW_VERSION;
 
-  mqtt.beginMessage(cfg.mqttTopicMeta, (unsigned long)measureJson(posting));
-  serializeJson(posting, mqtt);
-  mqtt.endMessage();
-}
-
-void logMQTTError() {
-  Serial.printf("GIZMO_MQTT_FAIL ");
-  switch(mqtt.connectError()) {
-  case MQTT_CONNECTION_REFUSED:
-    Serial.println("MQTT_CONNECTION_REFUSED");
-    break;
-  case MQTT_CONNECTION_TIMEOUT:
-    Serial.println("MQTT_CONNECTION_TIMEOUT");
-    break;
-  case MQTT_SUCCESS:
-    Serial.println("MQTT_SUCCESS");
-    break;
-  case MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-    Serial.println("MQTT_UNACCEPTABLE_PROTOCOL_VERSION");
-    break;
-  case MQTT_IDENTIFIER_REJECTED:
-    Serial.println("MQTT_IDENTIFIER_REJECTED");
-    break;
-  case MQTT_SERVER_UNAVAILABLE:
-    Serial.println("MQTT_SERVER_UNAVAILABLE");
-    break;
-  case MQTT_BAD_USER_NAME_OR_PASSWORD:
-    Serial.println("MQTT_BAD_USER_NAME_OR_PASSWORD");
-    break;
-  case MQTT_NOT_AUTHORIZED:
-    Serial.println("MQTT_NOT_AUTHORIZED");
-    break;
-  }
+  udp.beginPacket(dsIP, 1729);
+  udp.write('M');
+  serializeJson(posting, udp);
+  udp.endPacket();
 }

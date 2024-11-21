@@ -8,11 +8,7 @@ struct Config {
   int teamNumber;
   char hostname[32];
 
-  String mqttBroker;
-  String mqttTopicControl;
-  String mqttTopicLocation;
-  String mqttTopicStats;
-  String mqttTopicMeta;
+  String ds;
   String netSSID;
   String netPSK;
 };
@@ -69,8 +65,7 @@ enum NetState {
   NET_CONNECT_WIFI,
   NET_CONNECT_WAIT_WIFI,
   NET_CONNECT_WAIT_ENET,
-  NET_FMS_DISCOVER,
-  NET_CONNECT_MQTT,
+  NET_BIND,
   NET_RUNNING,
 };
 
