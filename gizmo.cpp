@@ -52,6 +52,7 @@ Wiznet5500lwIP eth(GIZMO_HW_ENET_CS, SPI, GIZMO_HW_ENET_INT);
 WiFiUDP udp;
 IPAddress dsIP;
 IPAddress gizmoIP;
+byte mac[6];
 
 bool enetAvailable = false;
 
@@ -190,7 +191,6 @@ void GizmoSetup() {
   WiFi.setHostname(cfg.hostname);
   WiFi.noLowPowerMode();
   WiFi.setTimeout(500);
-  WiFi.config(gizmoIP);
 
   // Enable the hardware watchdog.  If we've gotten stuck for more
   // than a few seconds something has broken - badly.
@@ -202,11 +202,17 @@ void GizmoSetup() {
   byte d3 = (cfg.teamNumber % 1000) % 100 / 10 * 16;
   byte d4 = (cfg.teamNumber % 1000) % 100 % 10;
 
-  byte mac[] = {0x02, 0x00, 0x00, byte(d1+d2), byte(d3+d4), 0x00};
+  mac[0] = 0x02;
+  mac[1] = 0x00;
+  mac[2] = 0x00;
+  mac[3] = byte(d1+d2);
+  mac[4] = byte(d3+d4);
+  mac[5] = 0x00;
   netLinkResetWiznet();
   // Necessary to wait here to allow the Wiznet time to come back.
   delay(50);
   eth.setSPISpeed(30000000);
+
   if (!eth.begin(mac)) {
     Serial.println("GIZMO_ENET_INIT_FAILED");
   } else {
@@ -217,7 +223,6 @@ void GizmoSetup() {
 
   statusUpdate();
   status.Update();
-  netState = NET_SEARCH;
 }
 
 // Tick runs all the functions that need to happen on every loop
@@ -313,7 +318,7 @@ bool loadConfig(String path) {
 
   // This works because we can assert that the driver's station is at
   // a fixed address.
-  dsIP   = IPAddress(10, byte(cfg.teamNumber/100), byte(cfg.teamNumber%100), 2);
+  dsIP    = IPAddress(10, byte(cfg.teamNumber/100), byte(cfg.teamNumber%100), 2);
   gizmoIP = IPAddress(10, byte(cfg.teamNumber/100), byte(cfg.teamNumber%100), 3);
 
   Serial.print("GIZMO_CFG_TEAM ");
@@ -447,11 +452,17 @@ void netStateLinkSearch() {
     netState = NET_CONNECT_WAIT_ENET;
     Serial.println("GIZMO_NET_ENET_ATTEMPT");
     netStateConnectTimeout = millis() + 5000;
+    WiFi.config(0);
+    eth.end();
+    eth.config(gizmoIP);
+    eth.begin(mac);
     WiFi.disconnect();
     WiFi.end();
     return;
   }
 
+  eth.config(0);
+  WiFi.config(gizmoIP);
   Serial.println("GIZMO_NET_WIFI_ATTEMPT");
   netState = NET_CONNECT_WIFI;
   netStateConnectTimeout = millis() + 30000;
@@ -476,14 +487,14 @@ void netStateConnectWaitEnet() {
   netState = NET_BIND;
   netLink = NET_WIRED;
   nextControlPacketDueBy = millis() + 2000;
-  Serial.println("GIZMO_NET_IP " + eth.localIP().toString());
+  Serial.println("GIZMO_NET_IP_WIFI " + WiFi.localIP().toString());
+  Serial.println("GIZMO_NET_IP_ENET " + eth.localIP().toString());
   Serial.println("GIZMO_NET_WIRED_RUN");
 }
 
 void netStateWifiConnect() {
   Serial.println("GIZMO_NET_WIFI_START");
   WiFi.mode(WIFI_STA);
-  WiFi.config(gizmoIP);
   WiFi.beginNoBlock(cfg.netSSID.c_str(), cfg.netPSK.c_str());
 
   netState = NET_CONNECT_WAIT_WIFI;
@@ -510,11 +521,13 @@ void netStateConnectWaitWifi() {
   netState = NET_BIND;
   netLink = NET_WIRELESS;
   nextControlPacketDueBy = millis() + 2000;
-  Serial.println("GIZMO_NET_IP " + WiFi.localIP().toString());
+  Serial.println("GIZMO_NET_IP_WIFI " + WiFi.localIP().toString());
+  Serial.println("GIZMO_NET_IP_ENET " + eth.localIP().toString());
   Serial.println("GIZMO_NET_WIFI_RUN");
 }
 
 void netStateBind() {
+  udp.stopAll();
   if (!udp.begin(1729)) {
     Serial.println("GIZMO_NET_BIND_FAIL");
     delay(100);
@@ -539,7 +552,6 @@ void netStateRun() {
 
   if (nextControlPacketDueBy < millis()) {
     status.SetControlConnected(false);
-    Serial.printf("GIZMO_CTRL_TIMEOUT %d\r\n", (millis() - nextControlPacketDueBy));
     zeroizeCState();
     return;
   }
@@ -548,7 +560,7 @@ void netStateRun() {
   // this is only necessary when running the polling mode ethernet
   // lwIP interface.
   if (netLink == NET_WIRED) {
-    delay(1);
+    delay(5);
   }
 }
 
