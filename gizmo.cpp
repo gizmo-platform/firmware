@@ -165,11 +165,6 @@ void GizmoSetup() {
   digitalWrite(pinWiznetReset, HIGH);
   Serial.begin(9600);
 
-  // This slows down the boot long enough that the serial load
-  // messages can be printed.  Its a tradeoff between boot speed and
-  // debugability, and for the moment we're favoring debugability.
-  delay(3000);
-
   loadConfig("/gsscfg.json");
   Serial.print("GIZMO_HARDWARE ");
   Serial.println(GIZMO_HW_VERSION);
