@@ -336,7 +336,8 @@ void loadConfigFromSerial() {
     }
     break;
   case CFG_REQUEST:
-    Serial.println("GIZMO_REQUEST_CONFIG");
+    Serial.print("GIZMO_REQUEST_CONFIG ");
+    Serial.println(cfg.teamNumber);
     _load_timeout = millis() + 15000;
     cfgState = CFG_WAIT;
     break;
