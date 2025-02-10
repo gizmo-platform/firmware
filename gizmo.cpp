@@ -52,6 +52,7 @@ Wiznet5500lwIP eth(GIZMO_HW_ENET_CS, SPI, GIZMO_HW_ENET_INT);
 WiFiUDP udp;
 IPAddress dsIP;
 IPAddress gizmoIP;
+IPAddress fmsIP = IPAddress(100, 64, 0, 2);
 byte mac[6];
 
 bool enetAvailable = false;
@@ -734,6 +735,12 @@ void metaReport() {
   posting["FirmwareVersion"] = GIZMO_FW_VERSION;
 
   udp.beginPacket(dsIP, 1729);
+  udp.write('M');
+  serializeJson(posting, udp);
+  udp.endPacket();
+
+  // Report directly to the FMS as well
+  udp.beginPacket(fmsIP, 1729);
   udp.write('M');
   serializeJson(posting, udp);
   udp.endPacket();
