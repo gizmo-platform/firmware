@@ -54,6 +54,7 @@ IPAddress dsIP;
 IPAddress gizmoIP;
 IPAddress fmsIP = IPAddress(100, 64, 0, 2);
 byte mac[6];
+float batteryTrip[3];
 
 bool enetAvailable = false;
 
@@ -77,6 +78,7 @@ unsigned long nextMetaReportAt;
 bool loadConfig(String);
 void loadConfigFromSerial();
 void checkIfShouldConfig();
+void checkBatteryArchitecture();
 void zeroizeCState();
 
 bool netLinkOk();
@@ -152,6 +154,8 @@ void GizmoSetup() {
   // wild blue yonder.
   zeroizeCState();
 
+  delay(3000);
+
   pinMode(pinStatusPwrBoard, INPUT);
   pinMode(pinStatusPwrPico, INPUT);
   pinMode(pinStatusPwrGPIO, INPUT);
@@ -171,6 +175,7 @@ void GizmoSetup() {
   Serial.println(GIZMO_HW_VERSION);
   Serial.print("GIZMO_FIRMWARE ");
   Serial.println(GIZMO_FW_VERSION);
+  checkBatteryArchitecture();
 
   // We set SPI here for the wiznet breakout
   SPI.setRX(0);
@@ -672,6 +677,29 @@ void wireRespond() {
   Wire1.write(toSend, 18);
 }
 
+void checkBatteryArchitecture() {
+  boardState.VBat = analogRead(pinStatusPwrSupply);
+  float voltage = pinStatusPwrSupplyTuneM * boardState.VBat + pinStatusPwrSupplyTuneB;
+  Serial.printf("GIZMO_BATTERY_DETECT %.1f\r\n", voltage);
+
+  // This function gets called at the very start during
+  // initialization.  Because of that we can assert that whatever
+  // voltage here is the float voltage.  Since even a fully charged
+  // 7.2v battery won't hit 9v, that's the trip point between a 7.2v
+  // battery and a 12v one.
+  if (voltage > 9) {
+    batteryTrip[0] = 11.4; // Above this is "fully charged"
+    batteryTrip[1] = 10.5; // Good if still above here
+    batteryTrip[2] = 10.0; // Passable, but below here is dead
+  } else {
+    batteryTrip[0] = 7.2; // Above this is "fully charged"
+    batteryTrip[1] = 7.0; // Good if still above here
+    batteryTrip[2] = 6.5; // Passable, but below here is dead
+  }
+
+  Serial.printf("GIZMO_BATTERY_TRIGGERS %.1f %.1f %.1f\r\n", batteryTrip[0], batteryTrip[1], batteryTrip[2]);
+}
+
 void statusUpdate() {
   boardState.VBat = analogRead(pinStatusPwrSupply);
   boardState.WatchdogRemaining = 0;
@@ -692,13 +720,13 @@ void statusUpdate() {
   // ADC has near perfect linear response.
   float voltage = pinStatusPwrSupplyTuneM * boardState.VBat + pinStatusPwrSupplyTuneB;
 
-  if (voltage>=7.2) {
+  if (voltage>=batteryTrip[0]) {
     status.SetBatteryLevel(GIZMO_BAT_FULL);
-  } else if (voltage<7.2 && voltage>=7) {
+  } else if (voltage<batteryTrip[0] && voltage>=batteryTrip[1]) {
     status.SetBatteryLevel(GIZMO_BAT_GOOD);
-  } else if (voltage<7 && voltage>=6.5) {
+  } else if (voltage<batteryTrip[1] && voltage>=batteryTrip[2]) {
     status.SetBatteryLevel(GIZMO_BAT_PASS);
-  } else if (voltage<6.5) {
+  } else if (voltage<batteryTrip[2]) {
     status.SetBatteryLevel(GIZMO_BAT_DEAD);
   }
 }
