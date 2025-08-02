@@ -22,6 +22,7 @@ void loop() {
 }
 
 void setup1() {
+  ZeroizeCState();
   WireSetup(GIZMO_HW_I2C_SDA, GIZMO_HW_I2C_SCL);
 }
 

@@ -79,7 +79,7 @@ bool loadConfig(String);
 void loadConfigFromSerial();
 void checkIfShouldConfig();
 void checkBatteryArchitecture();
-void zeroizeCState();
+void ZeroizeCState();
 
 bool netLinkOk();
 void netLinkResetWiznet();
@@ -126,7 +126,7 @@ void ConfigureWiznetReset(byte rst) {
 }
 
 
-void zeroizeCState() {
+void ZeroizeCState() {
   cstate.Button0 = false;
   cstate.Button1 = false;
   cstate.Button2 = false;
@@ -152,7 +152,7 @@ void GizmoSetup() {
   // Ensure that the cstate values for axis data start at a reasonable
   // zero point.  This prevents machines from running off into the
   // wild blue yonder.
-  zeroizeCState();
+  ZeroizeCState();
 
   delay(3000);
 
@@ -554,7 +554,7 @@ void netStateRun() {
 
   if (nextControlPacketDueBy < millis()) {
     status.SetControlConnected(false);
-    zeroizeCState();
+    ZeroizeCState();
     return;
   }
 

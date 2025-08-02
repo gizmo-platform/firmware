@@ -74,6 +74,7 @@ enum NetLink {
   NET_WIRELESS,
 };
 
+void ZeroizeCState();
 void ConfigureTeamNumber(int);
 void ConfigureStatusIO(byte, byte, byte, byte, byte, byte, byte, byte);
 void ConfigureBoardVoltageTuning(float, float);
